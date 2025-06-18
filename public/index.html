@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OASIS Community Map</title>
+    
+    <!-- Three.js Import Map for ES Modules -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+            }
+        }
+    </script>
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <h1>OASIS Community Map</h1>
+            <p>Elite Dangerous - OASIS Cluster Colonization Progress</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- 3D Scene Canvas -->
+            <canvas id="scene-canvas" class="scene-canvas"></canvas>
+
+            <!-- Controls Panel -->
+            <div class="controls-panel">
+                <!-- Legend -->
+                <div class="legend">
+                    <h3>System Types</h3>
+                    <div class="legend-items">
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: #FFD700; box-shadow: 0 0 10px #FFD700;"></span>
+                            <span>Key Systems</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: #00FF00; box-shadow: 0 0 10px #00FF00;"></span>
+                            <span>Complete Expedition Route</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: #FF8000; box-shadow: 0 0 10px #FF8000;"></span>
+                            <span>In Progress Expedition Route</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: #FFFF00; box-shadow: 0 0 10px #FFFF00;"></span>
+                            <span>Planned Expedition Route</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: #8000FF; box-shadow: 0 0 10px #8000FF;"></span>
+                            <span>Populated Systems</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: #00FFFF; box-shadow: 0 0 10px #00FFFF;"></span>
+                            <span>Fleet Carriers</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: #FFFFFF; opacity: 0.6;"></span>
+                            <span>Unclaimed Stars</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="filters">
+                    <h3>Filters</h3>
+                    <div class="filter-group">
+                        <label class="filter-item">
+                            <input type="checkbox" id="filter-keySystem" checked>
+                            <span>Key Systems</span>
+                        </label>
+                        <label class="filter-item">
+                            <input type="checkbox" id="filter-routeCompleted" checked>
+                            <span>Complete Expedition Route</span>
+                        </label>
+                        <label class="filter-item">
+                            <input type="checkbox" id="filter-routeInProgress" checked>
+                            <span>In Progress Expedition Route</span>
+                        </label>
+                        <label class="filter-item">
+                            <input type="checkbox" id="filter-routePlanned" checked>
+                            <span>Planned Expedition Route</span>
+                        </label>
+                        <label class="filter-item">
+                            <input type="checkbox" id="filter-populated" checked>
+                            <span>Populated Systems</span>
+                        </label>
+                        <label class="filter-item">
+                            <input type="checkbox" id="filter-fleetCarriers" checked>
+                            <span>Fleet Carriers</span>
+                        </label>
+                        <label class="filter-item">
+                            <input type="checkbox" id="filter-unclaimedStars" checked>
+                            <span>Unclaimed Stars</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Statistics -->
+                <div class="statistics">
+                    <h3>Statistics</h3>
+                    <div class="stat-items">
+                        <div class="stat-item">
+                            <span class="stat-label">Total Systems:</span>
+                            <span class="stat-value" id="stat-total">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Route Progress:</span>
+                            <span class="stat-value" id="stat-route-progress">0%</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Fleet Carriers:</span>
+                            <span class="stat-value" id="stat-fleet-carriers">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Populated:</span>
+                            <span class="stat-value" id="stat-populated">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Info Panel -->
+            <div class="system-info" id="system-info" style="display: none;">
+                <h3 id="system-name">System Name</h3>
+                <div class="system-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Type:</span>
+                        <span class="detail-value" id="system-type">Unknown</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Coordinates:</span>
+                        <span class="detail-value" id="system-coords">0, 0, 0</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Primary Star:</span>
+                        <span class="detail-value" id="system-star">Unknown</span>
+                    </div>
+                    <div class="detail-item" id="population-info" style="display: none;">
+                        <span class="detail-label">Population:</span>
+                        <span class="detail-value" id="system-population">0</span>
+                    </div>
+                    <div class="detail-item" id="economy-info" style="display: none;">
+                        <span class="detail-label">Economy:</span>
+                        <span class="detail-value" id="system-economy">Unknown</span>
+                    </div>
+                    <div class="detail-item" id="route-info" style="display: none;">
+                        <span class="detail-label">Route Status:</span>
+                        <span class="detail-value" id="route-status">Unknown</span>
+                    </div>
+                </div>
+                <button class="close-btn" onclick="closeSystemInfo()">×</button>
+            </div>
+        </main>
+
+        <!-- Loading Screen -->
+        <div id="loading-screen" class="loading-screen">
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <h2>Loading OASIS Community Map</h2>
+                <p>Connecting to the galactic network...</p>
+                <div class="loading-status" id="loading-status">Initializing...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="js/main.js"></script>
+</body>
+</html> 
