@@ -21,8 +21,11 @@ class OASISCommunityMap {
         try {
             this.updateLoadingStatus('Initializing application...');
             
-            // Setup event listeners
-            this.setupEventListeners();
+                    // Setup mobile defaults
+        this.setupMobileDefaults();
+        
+        // Setup event listeners
+        this.setupEventListeners();
             
             // Load all data and render scene
             this.updateLoadingStatus('Loading stellar data...');
@@ -100,14 +103,71 @@ class OASISCommunityMap {
                 
                 if (isHidden) {
                     controlsPanel.classList.remove('hidden');
-                    mobileToggle.textContent = '☰';
+                    mobileToggle.classList.remove('closed');
+                    mobileToggle.textContent = '▶';
                     mobileToggle.title = 'Hide Controls';
                 } else {
                     controlsPanel.classList.add('hidden');
-                    mobileToggle.textContent = '▶';
+                    mobileToggle.classList.add('closed');
+                    mobileToggle.textContent = '◀';
                     mobileToggle.title = 'Show Controls';
                 }
             });
+        }
+
+        // Mobile instructions popup
+        const mobileInstructions = document.getElementById('mobile-instructions');
+        const instructionsClose = document.getElementById('instructions-close');
+        
+        // Show instructions on mobile devices on first visit
+        if (window.innerWidth <= 768 && !localStorage.getItem('mobile-instructions-seen')) {
+            setTimeout(() => {
+                if (mobileInstructions) {
+                    mobileInstructions.classList.add('show');
+                }
+            }, 1500); // Show after map loads
+        }
+        
+        if (instructionsClose && mobileInstructions) {
+            instructionsClose.addEventListener('click', () => {
+                mobileInstructions.classList.remove('show');
+                localStorage.setItem('mobile-instructions-seen', 'true');
+            });
+        }
+        
+        // Close instructions when clicking outside
+        if (mobileInstructions) {
+            mobileInstructions.addEventListener('click', (event) => {
+                if (event.target === mobileInstructions) {
+                    mobileInstructions.classList.remove('show');
+                    localStorage.setItem('mobile-instructions-seen', 'true');
+                }
+            });
+        }
+    }
+
+    setupMobileDefaults() {
+        const controlsPanel = document.querySelector('.controls-panel');
+        const mobileToggle = document.getElementById('mobile-toggle');
+        
+        // On desktop, show panel by default
+        // On mobile, keep it hidden (already has 'hidden' class in HTML)
+        if (window.innerWidth > 768 && controlsPanel) {
+            controlsPanel.classList.remove('hidden');
+        }
+        
+        // Update toggle button state based on panel visibility
+        if (mobileToggle && controlsPanel) {
+            const isHidden = controlsPanel.classList.contains('hidden');
+            if (isHidden) {
+                mobileToggle.classList.add('closed');
+                mobileToggle.textContent = '◀';
+                mobileToggle.title = 'Show Controls';
+            } else {
+                mobileToggle.classList.remove('closed');
+                mobileToggle.textContent = '▶';
+                mobileToggle.title = 'Hide Controls';
+            }
         }
     }
 

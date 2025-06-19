@@ -66,6 +66,10 @@ export class SceneManager {
         this.animationId = null;
         this.time = 0;
         
+        // Auto-rotation settings
+        this.lastInteraction = Date.now();
+        this.interactionTimeout = 3000; // Resume auto-rotation after 3 seconds of no interaction
+        
         // Event callback
         this.onSystemClick = null;
         
@@ -133,7 +137,7 @@ export class SceneManager {
     setupCamera() {
         const aspect = this.canvas.clientWidth / this.canvas.clientHeight;
         this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
-        this.camera.position.set(0, 30, 80);
+        this.camera.position.set(0, 50, 150); // Move camera further back for better overview
         this.camera.lookAt(0, 0, 0);
     }
 
@@ -160,6 +164,21 @@ export class SceneManager {
         this.controls.minDistance = 5;
         this.controls.maxDistance = 300;
         this.controls.maxPolarAngle = Math.PI;
+        
+        // Enable smooth auto-rotation
+        this.controls.autoRotate = true;
+        this.controls.autoRotateSpeed = 0.5; // Degrees per second
+        console.log('🔄 Auto-rotation enabled at', this.controls.autoRotateSpeed, 'degrees/second');
+        
+        // Listen for user interactions to pause auto-rotation
+        this.controls.addEventListener('start', () => {
+            console.log('🎮 OrbitControls interaction started - pausing auto-rotation');
+            this.onUserInteraction();
+        });
+        
+        this.controls.addEventListener('end', () => {
+            console.log('🎮 OrbitControls interaction ended');
+        });
     }
 
     setupSciFiLighting() {
@@ -193,6 +212,12 @@ export class SceneManager {
 
         this.canvas.addEventListener('click', (event) => this.handleClick(event));
         this.canvas.addEventListener('mousemove', (event) => this.handleMouseMove(event));
+        
+        // Listen for mouse interactions to pause auto-rotation
+        this.canvas.addEventListener('mousedown', () => this.onUserInteraction());
+        this.canvas.addEventListener('wheel', () => this.onUserInteraction());
+        this.canvas.addEventListener('touchstart', () => this.onUserInteraction());
+        this.canvas.addEventListener('touchmove', () => this.onUserInteraction());
     }
 
     setupSpaceBackground() {
@@ -239,23 +264,20 @@ export class SceneManager {
                 return;
             }
 
+            console.log(`📊 Loading ${vizData.systems.length} systems into lookup table...`);
+
             // Store all systems for lookup with case-insensitive mapping
             vizData.systems.forEach(system => {
                 this.allSystems.set(system.name, system);
                 this.systemNameMap.set(this.normalizeSystemName(system.name), system.name);
             });
 
-            // Find and set memorial system as scene center
-            const memorial = this.getSystem(this.memorialSystem);
-            if (memorial?.coords) {
-                this.memorialCoords = memorial.coords;
-                console.log(`🏛️ Memorial system found at:`, this.memorialCoords);
-            } else {
-                console.warn('⚠️ Memorial system not found, using default center');
-                this.memorialCoords = { x: 470, y: -380, z: -1100 };
-            }
+            console.log(`✅ Systems loaded into lookup table. Total: ${this.allSystems.size}`);
 
-            // Load additional data sources (fix duplicate loading)
+            // Calculate scene center from average of all anchor point locations
+            await this.calculateSceneCenterFromAnchors();
+
+            // Load additional data sources
             const [sheetsData, specialData] = await Promise.all([
                 dataManager.loadSheetsData(),
                 this.loadSpecialSystems(dataManager)
@@ -268,6 +290,80 @@ export class SceneManager {
             
         } catch (error) {
             console.error('❌ Failed to load OASIS systems:', error);
+            // Ensure we have a fallback center even if there's an error
+            this.useFallbackCenter();
+        }
+    }
+
+    /**
+     * Calculate scene center from average of all anchor point locations
+     */
+    async calculateSceneCenterFromAnchors() {
+        try {
+            console.log(`🔍 Systems in lookup table: ${this.allSystems.size}`);
+            
+            const response = await fetch('/api/anchor-systems');
+            if (!response.ok) {
+                console.warn('⚠️ Could not load anchor systems, using memorial system as fallback');
+                this.useFallbackCenter();
+                return;
+            }
+            
+            const anchorSystems = await response.json();
+            console.log(`📍 Calculating scene center from ${anchorSystems.length} anchor systems`);
+
+            const validAnchors = [];
+            
+            // Find all anchor systems that exist in our main systems data
+            for (const anchor of anchorSystems) {
+                console.log(`🔍 Looking for anchor system: "${anchor.name}"`);
+                const system = this.getSystem(anchor.name);
+                if (system?.coords) {
+                    validAnchors.push(system.coords);
+                    console.log(`✅ Found anchor system: ${anchor.name} at`, system.coords);
+                } else {
+                    console.warn(`❌ Anchor system "${anchor.name}" not found in main systems data`);
+                }
+            }
+
+            if (validAnchors.length === 0) {
+                console.warn('⚠️ No valid anchor systems found, using memorial system as fallback');
+                this.useFallbackCenter();
+                return;
+            }
+
+            // Calculate average position
+            const sum = validAnchors.reduce((acc, coords) => ({
+                x: acc.x + coords.x,
+                y: acc.y + coords.y,
+                z: acc.z + coords.z
+            }), { x: 0, y: 0, z: 0 });
+
+            this.memorialCoords = {
+                x: sum.x / validAnchors.length,
+                y: sum.y / validAnchors.length,
+                z: sum.z / validAnchors.length
+            };
+
+            console.log(`🎯 Scene center calculated from ${validAnchors.length} anchor systems:`, this.memorialCoords);
+            
+        } catch (error) {
+            console.warn('⚠️ Error calculating scene center from anchors:', error);
+            this.useFallbackCenter();
+        }
+    }
+
+    /**
+     * Use fallback center (memorial system or default)
+     */
+    useFallbackCenter() {
+        const memorial = this.getSystem(this.memorialSystem);
+        if (memorial?.coords) {
+            this.memorialCoords = memorial.coords;
+            console.log(`🏛️ Using memorial system as scene center:`, this.memorialCoords);
+        } else {
+            console.warn('⚠️ Memorial system not found, using default center');
+            this.memorialCoords = { x: 470, y: -380, z: -1100 };
         }
     }
 
@@ -843,11 +939,27 @@ export class SceneManager {
         this.fcLabels.length = 0;
     }
 
+    /**
+     * Handle user interaction - pause auto-rotation
+     */
+    onUserInteraction() {
+        this.lastInteraction = Date.now();
+        this.controls.autoRotate = false;
+        console.log('🚫 Auto-rotation paused due to user interaction');
+    }
+
     startAnimation() {
         const animate = () => {
             this.animationId = requestAnimationFrame(animate);
             
             this.time += 0.01;
+            
+            // Check if we should resume auto-rotation
+            const timeSinceInteraction = Date.now() - this.lastInteraction;
+            if (!this.controls.autoRotate && timeSinceInteraction > this.interactionTimeout) {
+                this.controls.autoRotate = true;
+                console.log('🔄 Auto-rotation resumed after', timeSinceInteraction, 'ms of inactivity');
+            }
             
             this.controls.update();
             
