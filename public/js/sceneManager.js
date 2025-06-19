@@ -531,16 +531,18 @@ export class SceneManager {
     createRegionLabel(description, systemName) {
         const label = document.createElement('div');
         label.className = 'system-label region-label';
-        label.textContent = description; // Just the region name
+        
+        // Use CSV description as the primary label text
+        label.textContent = description;
         
         // Add custom blurbs for regions
         const regionBlurbs = this.getRegionBlurbs();
         const blurb = regionBlurbs[description] || `Region: ${description}\nAnchor System: ${systemName}`;
         label.title = blurb;
         
-        // Store region data for click handling
+        // Store region data for click handling - use CSV description for lore lookups
         label.dataset.regionData = JSON.stringify({
-            name: description,
+            name: description,  // Use CSV description as name
             systemName: systemName,
             blurb: blurb,
             type: 'region'

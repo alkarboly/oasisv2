@@ -612,4 +612,53 @@ body {
         width: 20px;
         height: 20px;
     }
+}
+
+/* Lore Section */
+.lore-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.lore-image {
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.lore-image img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.lore-description {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 1rem;
+}
+
+.lore-discord {
+    text-align: center;
+}
+
+.lore-discord a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #5865F2;
+    color: white;
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.lore-discord a:hover {
+    background: #4752C4;
+    transform: translateY(-1px);
 } 

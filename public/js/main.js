@@ -276,13 +276,19 @@ class OASISCommunityMap {
         const typeElement = document.getElementById('system-type');
         if (typeElement) typeElement.textContent = 'Fleet Carrier';
 
-        // Update coordinates (location)
+        // Update coordinates field to show system instead
         const coordsElement = document.getElementById('system-coords');
         if (coordsElement) coordsElement.textContent = fcData.location;
+        // Update coordinates label
+        const coordsLabel = coordsElement.parentElement.querySelector('.detail-label');
+        if (coordsLabel) coordsLabel.textContent = 'System:';
 
-        // Update owner info in primary star field
+        // Update primary star field to show FC Owner instead
         const starElement = document.getElementById('system-star');
         if (starElement) starElement.textContent = fcData.owner;
+        // Update primary star label
+        const starLabel = starElement.parentElement.querySelector('.detail-label');
+        if (starLabel) starLabel.textContent = 'FC Owner:';
 
         // Show status in population field
         const populationInfo = document.getElementById('population-info');
@@ -298,6 +304,7 @@ class OASISCommunityMap {
         // Hide other fields
         document.getElementById('economy-info').style.display = 'none';
         document.getElementById('route-info').style.display = 'none';
+        document.getElementById('lore-section').style.display = 'none';
     }
 
     showRegionInfo(regionData, infoPanel) {
@@ -309,6 +316,12 @@ class OASISCommunityMap {
         const typeElement = document.getElementById('system-type');
         if (typeElement) typeElement.textContent = 'Region';
 
+        // Reset labels to default
+        const coordsLabel = document.querySelector('#system-coords').parentElement.querySelector('.detail-label');
+        if (coordsLabel) coordsLabel.textContent = 'Anchor System:';
+        const starLabel = document.querySelector('#system-star').parentElement.querySelector('.detail-label');
+        if (starLabel) starLabel.textContent = 'Description:';
+
         // Update coordinates (anchor system)
         const coordsElement = document.getElementById('system-coords');
         if (coordsElement) coordsElement.textContent = regionData.systemName;
@@ -316,6 +329,9 @@ class OASISCommunityMap {
         // Show blurb in primary star field
         const starElement = document.getElementById('system-star');
         if (starElement) starElement.textContent = regionData.blurb;
+
+        // Show lore section with detailed descriptions
+        this.showLoreSection(regionData.name);
 
         // Hide other fields
         document.getElementById('population-info').style.display = 'none';
@@ -340,6 +356,12 @@ class OASISCommunityMap {
             };
             typeElement.textContent = typeNames[systemData.category] || systemData.category;
         }
+
+        // Reset labels to default
+        const coordsLabel = document.querySelector('#system-coords').parentElement.querySelector('.detail-label');
+        if (coordsLabel) coordsLabel.textContent = 'Coordinates:';
+        const starLabel = document.querySelector('#system-star').parentElement.querySelector('.detail-label');
+        if (starLabel) starLabel.textContent = 'Primary Star:';
 
         // Update coordinates
         const coordsElement = document.getElementById('system-coords');
@@ -392,6 +414,131 @@ class OASISCommunityMap {
         } else {
             routeInfo.style.display = 'none';
         }
+
+        // Hide lore section for regular systems
+        document.getElementById('lore-section').style.display = 'none';
+    }
+
+    showLoreSection(regionName) {
+        const loreSection = document.getElementById('lore-section');
+        const loreImage = document.getElementById('lore-image');
+        const loreDescription = document.getElementById('lore-description');
+        const loreDiscord = document.getElementById('lore-discord');
+
+        if (!loreSection) return;
+
+        // Clear previous content
+        loreImage.innerHTML = '';
+        loreDescription.innerHTML = '';
+        loreDiscord.innerHTML = '';
+
+        // Get lore data based on region name
+        const loreData = this.getLoreData(regionName);
+        
+        if (loreData) {
+            // Add image if available
+            if (loreData.image) {
+                loreImage.innerHTML = `<img src="${loreData.image}" alt="${regionName}" />`;
+            }
+
+            // Add description
+            if (loreData.description) {
+                loreDescription.innerHTML = loreData.description;
+            }
+
+            // Add Discord link if available
+            if (loreData.discord) {
+                loreDiscord.innerHTML = `<a href="${loreData.discord}" target="_blank" rel="noopener noreferrer">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419-.0189 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1568 2.4189Z"/>
+                    </svg>
+                    Join ${loreData.discordName || 'Discord'}
+                </a>`;
+            }
+
+            loreSection.style.display = 'block';
+        } else {
+            loreSection.style.display = 'none';
+        }
+    }
+
+    getLoreData(regionName) {
+        const loreDatabase = {
+            "OASIS": {
+                description: `
+                    <p><strong>The Orion Alliance of Independent Systems</strong></p>
+                    <p>When we began Shoulder of Orion, the goal was clear: create a chain of outposts to Orion and set up the launch system for DW3. Colonization was a tool. A means to an end.</p>
+                    <p>But as we have embarked on this historic journey together, things evolved. Became something more. We became a community. Friendships have been made, inside jokes birthed, and most importantly, hopes and aspirations for plans at Orion have been shared.</p>
+                    <p><strong>OASIS</strong> is a philanthropic player organization that provides:</p>
+                    <ul>
+                        <li>Alliance with a core network of eight systems generating colonization commodities</li>
+                        <li>Dedicated Fleet Carrier rotation between Orion and the Bubble</li>
+                        <li>Community Discord for lore, safe passages, and general chat</li>
+                        <li>Support for budding systems with barn-raising kindness and hauling</li>
+                    </ul>
+                    <p><em>Welcome home to OASIS.</em></p>
+                `,
+                discord: "https://discord.gg/WDjCDzp5eq",
+                discordName: "OASIS Discord"
+            },
+            "SoO": {
+                image: "images/ShouldOfOrion_thumb.jpg",
+                description: `
+                    <p><strong>The Shoulder of Orion Colonization Initiative</strong></p>
+                    <p>A massive colonization train effort designed to create a chain of outposts from the Bubble to reach OSC I (OASIS). This historic endeavor brought together hundreds of Commanders in a coordinated effort to establish humanity's presence in the Orion Nebula Complex.</p>
+                    <p>The initiative successfully established:</p>
+                    <ul>
+                        <li>407 truckers, architects & fleet carrier commanders on constant rotation</li>
+                        <li>90 carriers volunteered to the effort</li>
+                        <li>244 systems colonized with 242 outposts and one Ocellus starport</li>
+                        <li>4,895,917 tonnes of commodified materials hauled from the bubble</li>
+                        <li>6.1 billion credits spent in claims alone</li>
+                        <li>19.5 billion credits spent in construction commodities and materials</li>
+                    </ul>
+                    <p>Facilitated by <strong>FleetCom HQ</strong>, this operation laid the foundation for all future Orion expansion efforts.</p>
+                `,
+                discord: "https://discord.com/invite/0hKG2qb9ODixa7Iz",
+                discordName: "FleetCom HQ"
+            },
+            "Lambda Orionis": {
+                description: `
+                    <p><strong>The Second Orion Star Cluster - Dark Wheel Territory</strong></p>
+                    <p>The Second Orion Star Cluster has officially been reached and is now colonized! Thanks to the tireless efforts of explorers, fleet carrier captains, and support crews from OASIS, humanity has expanded its reach into yet another breathtaking region of space.</p>
+                    <p>This new star cluster, about 300 ly from Orion's Gate, was trailblazed by <strong>Dark Wheel Squadron</strong> who worked tirelessly to reach an area of space connected to key parts of Elite Dangerous history.</p>
+                    <p><strong>LAM01 ORIONIS</strong> - A Black Hole system with scan tags from Michael Brookes, author of key lore around Raxxla. Dark Wheel has built a memorial station in his honour.</p>
+                    <p>Key achievements:</p>
+                    <ul>
+                        <li>Stations deployed and key systems secured</li>
+                        <li>Infrastructure for long-term colonization established</li>
+                        <li>Memorial station built at LAM01 ORIONIS</li>
+                        <li>Connection to Elite Dangerous historical lore established</li>
+                    </ul>
+                    <p>The floodgates are open and anyone can claim any system they want in this historic region.</p>
+                `,
+                discord: "https://discord.gg/kWEUHkZhpT",
+                discordName: "Dark Wheel"
+            },
+            "OSC III": {
+                description: `
+                    <p><strong>The Third Orion Star Cluster Initiative</strong></p>
+                    <p>OSC III represents the latest colonization train initiative that OASIS is undertaking. This ongoing expansion effort continues humanity's push deeper into the Orion Nebula Complex.</p>
+                    <p><strong>Anyone is free to join and coordinate</strong> in our Discord community. Our Fleet Carriers show their location on the map for this initiative, displaying both completed and in-progress systems.</p>
+                    <p>Current Initiative Features:</p>
+                    <ul>
+                        <li>Open participation - all Commanders welcome</li>
+                        <li>Real-time Fleet Carrier location tracking</li>
+                        <li>Coordination through OASIS Discord</li>
+                        <li>Progress tracking of completed and claimed systems</li>
+                        <li>Continued expansion of human presence in Orion</li>
+                    </ul>
+                    <p>Join us as we write the next chapter in Orion's colonization story!</p>
+                `,
+                discord: "https://discord.gg/WDjCDzp5eq",
+                discordName: "OASIS Discord"
+            }
+        };
+
+        return loreDatabase[regionName] || null;
     }
 
     closeSystemInfo() {
