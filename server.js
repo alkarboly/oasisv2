@@ -19,7 +19,8 @@ app.use(helmet({
       // Allow Three.js ES modules and inline scripts for importmap
       scriptSrc: [
         "'self'", 
-        "'unsafe-inline'",  // Required for importmap and inline event handlers
+        "'unsafe-inline'",  // Required for importmap
+        "'unsafe-eval'",    // Required for some Three.js operations
         "https://unpkg.com", 
         "https://cdn.jsdelivr.net"
       ],
@@ -49,6 +50,39 @@ const SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 const PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
 let sheetsAuth = null;
+let cachedVisualizationData = null;
+let cachedAnchorSystems = null;
+
+// Load and cache visualization data at startup
+async function loadVisualizationData() {
+  try {
+    console.log('📊 Loading combined visualization data...');
+    const vizData = await fs.readFile('data/combined_visualization_systems.json', 'utf8');
+    const parsedData = JSON.parse(vizData);
+    
+    // Convert systems array to lookup object for efficient access
+    const systemsLookup = {};
+    if (parsedData.systems && Array.isArray(parsedData.systems)) {
+      parsedData.systems.forEach(system => {
+        systemsLookup[system.name] = system;
+      });
+      
+      console.log(`🔍 Processed ${parsedData.systems.length} systems into lookup table`);
+      console.log('🔍 Sample system:', parsedData.systems[0]?.name, parsedData.systems[0]?.coords);
+    }
+    
+    // Cache the processed data
+    cachedVisualizationData = {
+      ...parsedData,
+      systemsLookup: systemsLookup
+    };
+    
+    return cachedVisualizationData;
+  } catch (error) {
+    console.error('❌ Failed to load visualization data:', error);
+    return null;
+  }
+}
 
 async function initializeGoogleAuth() {
   try {
@@ -74,13 +108,17 @@ async function initializeGoogleAuth() {
   }
 }
 
-// Load anchor systems from CSV
+// Load and cache anchor systems from CSV
 async function loadAnchorSystems() {
+  if (cachedAnchorSystems) {
+    return cachedAnchorSystems;
+  }
+  
   try {
     const csvData = await fs.readFile('data/vis_anchor_systems.csv', 'utf8');
     const lines = csvData.split('\n').slice(1); // Skip header
     
-    return lines.filter(line => line.trim()).map(line => {
+    cachedAnchorSystems = lines.filter(line => line.trim()).map(line => {
       const [name, radius_ly, description] = line.split(',').map(s => s.trim());
       return {
         name,
@@ -88,6 +126,8 @@ async function loadAnchorSystems() {
         description: description || ''
       };
     });
+    
+    return cachedAnchorSystems;
   } catch (error) {
     console.error('Error loading anchor systems:', error);
     return [];
@@ -205,29 +245,22 @@ app.get('/api/special-systems', async (req, res) => {
 // Add API endpoint to serve combined visualization data
 app.get('/api/visualization-data', async (req, res) => {
   try {
-    console.log('📊 Loading combined visualization data...');
-    const vizData = await fs.readFile('data/combined_visualization_systems.json', 'utf8');
-    const parsedData = JSON.parse(vizData);
-    
-    // Convert systems array to lookup object for efficient access
-    const systemsLookup = {};
-    if (parsedData.systems && Array.isArray(parsedData.systems)) {
-      parsedData.systems.forEach(system => {
-        systemsLookup[system.name] = system;
-      });
-      
-      console.log(`🔍 Processed ${parsedData.systems.length} systems into lookup table`);
-      console.log('🔍 Sample system:', parsedData.systems[0]?.name, parsedData.systems[0]?.coords);
+    // Return cached data if available
+    if (cachedVisualizationData) {
+      res.json(cachedVisualizationData);
+      return;
     }
     
-    // Return both the original data and the lookup table
-    res.json({
-      ...parsedData,
-      systemsLookup: systemsLookup
-    });
+    // If not cached, load it now
+    const data = await loadVisualizationData();
+    if (data) {
+      res.json(data);
+    } else {
+      res.status(500).json({ error: 'Failed to load visualization data' });
+    }
   } catch (error) {
-    console.error('❌ Failed to load visualization data:', error);
-    res.status(500).json({ error: 'Failed to load visualization data' });
+    console.error('❌ Failed to serve visualization data:', error);
+    res.status(500).json({ error: 'Failed to serve visualization data' });
   }
 });
 
@@ -238,12 +271,17 @@ app.get('/', (req, res) => {
 
 // Start server
 async function startServer() {
+  // Initialize authentication and load data at startup
   await initializeGoogleAuth();
+  await loadVisualizationData();
+  await loadAnchorSystems();
   
   app.listen(PORT, () => {
     console.log(`🚀 OASIS Community Map running on port ${PORT}`);
     console.log(`📊 Google Sheets: ${sheetsAuth ? 'Connected' : 'Not configured'}`);
     console.log(`🌐 Access at: http://localhost:${PORT}`);
+    console.log(`✅ Visualization data cached: ${cachedVisualizationData ? 'Yes' : 'No'}`);
+    console.log(`✅ Anchor systems cached: ${cachedAnchorSystems ? 'Yes' : 'No'}`);
   });
 }
 

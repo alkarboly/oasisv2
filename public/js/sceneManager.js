@@ -10,7 +10,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
  * - Key systems (special golden system from CSV)
  * - Route systems (yellow planned, orange in-progress, green completed)
  * - Populated systems (purple with size based on population)
- * - Fleet carriers (cyan rotating octahedrons with dynamic text labels)
+ * - Fleet carriers (cyan rotating octahedrons with dynamic HTML labels)
+ * - Region labels from anchor systems CSV
  * - Unclaimed stars (smooth particle system)
  * - Sci-fi neon lighting and effects
  */
@@ -51,16 +52,22 @@ export class SceneManager {
         // Interactive objects and data storage
         this.interactiveObjects = [];
         this.systemData = new Map();
-        this.allSystems = new Map(); // All systems from JSON by name
-        this.fcLabels = []; // Store FC text labels for camera-relative positioning
+        this.allSystems = new Map(); // All systems from JSON by name (normalized keys)
+        this.systemNameMap = new Map(); // Case-insensitive lookup: normalized -> original
+        
+        // Label management
+        this.fcLabels = []; // Fleet carrier and region HTML labels
+        this.labelVisibility = {
+            fleetCarriers: true,
+            regionLabels: true
+        };
         
         // Animation properties
         this.animationId = null;
         this.time = 0;
         
-        // Event callbacks
+        // Event callback
         this.onSystemClick = null;
-        this.onSystemHover = null;
         
         this.init();
     }
@@ -81,6 +88,40 @@ export class SceneManager {
         
         this.startAnimation();
         console.log('🎬 OASIS Sci-Fi Scene initialized');
+    }
+
+    /**
+     * Normalize system name for case-insensitive comparison
+     */
+    normalizeSystemName(name) {
+        return name.toLowerCase().trim();
+    }
+
+    /**
+     * Get system with case-insensitive lookup
+     */
+    getSystem(systemName) {
+        const normalized = this.normalizeSystemName(systemName);
+        const originalName = this.systemNameMap.get(normalized);
+        return originalName ? this.allSystems.get(originalName) : null;
+    }
+
+    /**
+     * Get custom blurbs for different regions
+     */
+    getRegionBlurbs() {
+        return {
+            "Orion Core": "The heart of the Orion Star Cluster, containing the densest concentration of systems and the primary colonization hub. This region serves as the main staging area for expeditions.",
+            "Orion Nebula": "The spectacular stellar nursery region where new stars are born. Rich in rare materials and exotic phenomena, this area presents unique exploration opportunities.",
+            "Trapezium Cluster": "A young, hot star cluster within the Orion Nebula, known for its brilliant blue giants and active stellar formation. Home to some of the most luminous stars in the region.",
+            "Orion Belt": "The iconic three-star alignment visible from Earth, serving as a navigational landmark for pilots. These massive blue supergiants are among the most recognizable features in human space.",
+            "Horsehead Nebula": "A dark nebula silhouetted against the bright emission nebula IC 434. This region offers unique research opportunities in stellar formation and interstellar medium studies.",
+            "Flame Nebula": "A bright emission nebula illuminated by the nearby star Alnitak. Known for its distinctive reddish glow and active star formation regions.",
+            "Orion Outer Rim": "The frontier regions of the Orion Cluster, where brave explorers push the boundaries of known space. Less populated but rich in discovery potential.",
+            "Barnard's Loop": "A large arc of ionized gas surrounding much of the Orion constellation. This ancient supernova remnant creates a spectacular backdrop for deep space operations.",
+            "Rosette Nebula": "A skull-shaped emission nebula known for its distinctive appearance and active stellar nursery. Popular among both researchers and tourists.",
+            "Witch Head Nebula": "A reflection nebula illuminated by the bright star Rigel. Its ethereal blue glow makes it one of the most photographed regions in the cluster."
+        };
     }
 
     setupScene() {
@@ -198,13 +239,14 @@ export class SceneManager {
                 return;
             }
 
-            // Store all systems for lookup
+            // Store all systems for lookup with case-insensitive mapping
             vizData.systems.forEach(system => {
                 this.allSystems.set(system.name, system);
+                this.systemNameMap.set(this.normalizeSystemName(system.name), system.name);
             });
 
             // Find and set memorial system as scene center
-            const memorial = this.allSystems.get(this.memorialSystem);
+            const memorial = this.getSystem(this.memorialSystem);
             if (memorial?.coords) {
                 this.memorialCoords = memorial.coords;
                 console.log(`🏛️ Memorial system found at:`, this.memorialCoords);
@@ -213,15 +255,14 @@ export class SceneManager {
                 this.memorialCoords = { x: 470, y: -380, z: -1100 };
             }
 
-            // Load additional data sources
-            const [routeData, fcData, specialData] = await Promise.all([
+            // Load additional data sources (fix duplicate loading)
+            const [sheetsData, specialData] = await Promise.all([
                 dataManager.loadSheetsData(),
-                dataManager.loadSheetsData(), // FC data is part of sheets data
                 this.loadSpecialSystems(dataManager)
             ]);
 
             // Process all systems with their roles and status
-            await this.processAllSystems(vizData.systems, routeData, fcData, specialData);
+            await this.processAllSystems(vizData.systems, sheetsData, specialData);
             
             console.log(`✅ Loaded ${vizData.systems.length} systems into OASIS visualization`);
             
@@ -233,30 +274,33 @@ export class SceneManager {
     /**
      * Process all systems and categorize them based on their role in the colonization
      */
-    async processAllSystems(allSystems, routeData, fcData, specialData) {
-        // Create lookup maps for efficient categorization
+    async processAllSystems(allSystems, sheetsData, specialData) {
+        // Create lookup maps for efficient categorization with case-insensitive keys
         const routeMap = new Map();
         const fcMap = new Map();
         const specialMap = new Map();
 
         // Build route system map
-        if (routeData?.route) {
-            routeData.route.forEach(system => {
-                routeMap.set(system.system_name, system);
+        if (sheetsData?.route) {
+            sheetsData.route.forEach(system => {
+                const normalized = this.normalizeSystemName(system.system_name);
+                routeMap.set(normalized, system);
             });
         }
 
         // Build fleet carrier map
-        if (fcData?.fleetCarriers) {
-            fcData.fleetCarriers.forEach(fc => {
-                fcMap.set(fc.location, fc);
+        if (sheetsData?.fleetCarriers) {
+            sheetsData.fleetCarriers.forEach(fc => {
+                const normalized = this.normalizeSystemName(fc.location);
+                fcMap.set(normalized, fc);
             });
         }
 
         // Build special systems map
         if (specialData) {
             specialData.forEach(special => {
-                specialMap.set(special.system_name, special);
+                const normalized = this.normalizeSystemName(special.system_name || special.name);
+                specialMap.set(normalized, special);
             });
         }
 
@@ -268,10 +312,12 @@ export class SceneManager {
 
         // Categorize all systems
         for (const system of allSystems) {
-            if (specialMap.has(system.name)) {
+            const normalized = this.normalizeSystemName(system.name);
+            
+            if (specialMap.has(normalized)) {
                 specialSystems.push(system);
-            } else if (routeMap.has(system.name)) {
-                routeSystems.push({ system, routeInfo: routeMap.get(system.name) });
+            } else if (routeMap.has(normalized)) {
+                routeSystems.push({ system, routeInfo: routeMap.get(normalized) });
             } else if (system.information?.population > 0) {
                 populatedSystems.push(system);
             } else {
@@ -283,18 +329,21 @@ export class SceneManager {
         await this.processSpecialSystems(specialSystems, specialData);
         await this.processRouteSystems(routeSystems);
         await this.processPopulatedSystems(populatedSystems);
-        await this.processFleetCarriers(fcData);
+        await this.processFleetCarriers(sheetsData);
+        await this.processRegionLabels(); // Add region labels
         this.createUnclaimedStarsParticles(unclaimedSystems);
 
         console.log(`✅ Processed: ${specialSystems.length} special, ${routeSystems.length} route, ${populatedSystems.length} populated, ${unclaimedSystems.length} unclaimed`);
     }
 
     /**
-     * Process special systems (key systems)
+     * Process special systems (key systems) and add region labels
      */
     async processSpecialSystems(specialSystems, specialData) {
         for (const system of specialSystems) {
-            const specialInfo = specialData.find(s => s.system_name === system.name);
+            const specialInfo = specialData.find(s => 
+                this.normalizeSystemName(s.system_name || s.name) === this.normalizeSystemName(system.name)
+            );
             const coords = this.scaleCoordinatesForScene(system.coords);
 
             // Create key system with special effects - smaller size
@@ -334,6 +383,103 @@ export class SceneManager {
             this.groups.keySystem.add(glow);
             this.interactiveObjects.push(sphere);
         }
+    }
+
+    /**
+     * Process region labels from anchor systems CSV
+     */
+    async processRegionLabels() {
+        try {
+            const response = await fetch('/api/anchor-systems');
+            if (!response.ok) {
+                console.warn('Could not load anchor systems for region labels');
+                return;
+            }
+            
+            const anchorSystems = await response.json();
+            console.log(`🏷️ Processing ${anchorSystems.length} anchor systems for region labels`);
+
+            for (const anchor of anchorSystems) {
+                // Skip systems without descriptions
+                if (!anchor.description || !anchor.description.trim()) {
+                    continue;
+                }
+
+                // Find this system in all systems using case-insensitive lookup
+                const system = this.getSystem(anchor.name);
+                if (!system?.coords) {
+                    console.warn(`❌ Anchor system "${anchor.name}" not found in main systems data`);
+                    continue;
+                }
+
+                const coords = this.scaleCoordinatesForScene(system.coords);
+                console.log(`📍 Adding region label: "${anchor.description}" for system: ${anchor.name}`);
+                
+                const label = this.createRegionLabel(anchor.description, anchor.name);
+                
+                // Position label well above the system to avoid crowded star areas
+                this.fcLabels.push({
+                    element: label,
+                    position: new THREE.Vector3(coords.x, coords.y + 15, coords.z),
+                    type: 'region'
+                });
+            }
+        } catch (error) {
+            console.warn('Could not process region labels:', error);
+        }
+    }
+
+    /**
+     * Create HTML region label - just the region name
+     */
+    createRegionLabel(description, systemName) {
+        const label = document.createElement('div');
+        label.className = 'system-label region-label';
+        label.textContent = description; // Just the region name
+        
+        // Add custom blurbs for regions
+        const regionBlurbs = this.getRegionBlurbs();
+        const blurb = regionBlurbs[description] || `Region: ${description}\nAnchor System: ${systemName}`;
+        label.title = blurb;
+        
+        // Store region data for click handling
+        label.dataset.regionData = JSON.stringify({
+            name: description,
+            systemName: systemName,
+            blurb: blurb,
+            type: 'region'
+        });
+        
+        // Add styles
+        label.style.cssText = `
+            position: absolute;
+            background: rgba(255, 215, 0, 0.95);
+            color: #000;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            text-align: center;
+            border: 1px solid rgba(255, 215, 0, 0.8);
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+            pointer-events: all;
+            z-index: 1000;
+            white-space: nowrap;
+            transform: translate(-50%, -50%);
+        `;
+
+        // Add click handler
+        label.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const regionData = JSON.parse(label.dataset.regionData);
+            if (this.onSystemClick) {
+                this.onSystemClick(regionData);
+            }
+        });
+
+        document.body.appendChild(label);
+        return label;
     }
 
     /**
@@ -419,14 +565,17 @@ export class SceneManager {
     }
 
     /**
-     * Process fleet carriers with dynamic text labels
+     * Process fleet carriers with dynamic HTML labels
      */
-    async processFleetCarriers(fcData) {
-        if (!fcData?.fleetCarriers) return;
+    async processFleetCarriers(sheetsData) {
+        if (!sheetsData?.fleetCarriers) return;
 
-        for (const fc of fcData.fleetCarriers) {
-            const system = this.allSystems.get(fc.location);
-            if (!system?.coords) continue;
+        for (const fc of sheetsData.fleetCarriers) {
+            const system = this.getSystem(fc.location);
+            if (!system?.coords) {
+                console.warn(`❌ Fleet carrier location "${fc.location}" not found`);
+                continue;
+            }
 
             const coords = this.scaleCoordinatesForScene(system.coords);
             coords.y += 2; // Offset above system
@@ -443,9 +592,8 @@ export class SceneManager {
             fc3d.position.set(coords.x, coords.y, coords.z);
             fc3d.userData.isRotating = true;
 
-            // Create text label using canvas texture
+            // Create HTML text label for better visibility
             const label = this.createFCLabel(fc);
-            label.position.set(coords.x, coords.y, coords.z);
 
             // Store FC data
             this.systemData.set(fc3d.id, {
@@ -460,52 +608,68 @@ export class SceneManager {
             });
 
             this.groups.fleetCarriers.add(fc3d);
-            this.groups.fleetCarriers.add(label);
             this.interactiveObjects.push(fc3d);
             
-            // Store label for camera-relative updates
+            // Store label for screen-space updates
             this.fcLabels.push({
-                label: label,
-                fc3d: fc3d,
-                basePosition: coords
+                element: label,
+                position: new THREE.Vector3(coords.x, coords.y + 5, coords.z), // Higher above FC
+                type: 'fc'
             });
         }
     }
 
     /**
-     * Create dynamic FC text label
+     * Create HTML FC label for better visibility
      */
     createFCLabel(fc) {
-        // Create canvas for text
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        canvas.width = 256;
-        canvas.height = 64;
+        const label = document.createElement('div');
+        label.className = 'system-label fc-label';
+        label.textContent = fc.callsign; // Just the short callsign
+        label.title = `Fleet Carrier: ${fc.name}\nOwner: ${fc.owner_}\nStatus: ${fc.status}\nLocation: ${fc.location}`;
+        
+        // Make clickable and add FC data
+        label.dataset.fcData = JSON.stringify({
+            name: fc.name,
+            callsign: fc.callsign,
+            owner: fc.owner_,
+            status: fc.status,
+            location: fc.location,
+            type: 'fleetCarrier'
+        });
+        
+        // Compact, ergonomic styling
+        label.style.cssText = `
+            position: absolute;
+            background: rgba(0, 255, 255, 0.95);
+            color: #000;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            text-align: center;
+            border: 1px solid rgba(0, 255, 255, 0.8);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+            pointer-events: all;
+            z-index: 1001;
+            white-space: nowrap;
+            transform: translate(-50%, -50%);
+            min-width: 30px;
+            line-height: 1.2;
+        `;
 
-        // Draw text
-        context.fillStyle = 'rgba(0, 255, 255, 0.9)';
-        context.fillRect(0, 0, canvas.width, canvas.height);
-        context.fillStyle = 'black';
-        context.font = 'bold 14px Arial';
-        context.textAlign = 'left';
-        context.fillText(fc.callsign, 8, 20);
-        context.font = '12px Arial';
-        context.fillText(fc.name, 8, 36);
-        context.fillText(`Owner: ${fc.owner_}`, 8, 52);
-
-        // Create texture and material
-        const texture = new THREE.CanvasTexture(canvas);
-        const material = new THREE.SpriteMaterial({ 
-            map: texture,
-            transparent: true,
-            opacity: 0.9
+        // Add click handler
+        label.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const fcData = JSON.parse(label.dataset.fcData);
+            if (this.onSystemClick) {
+                this.onSystemClick(fcData);
+            }
         });
 
-        // Create sprite
-        const sprite = new THREE.Sprite(material);
-        sprite.scale.set(8, 2, 1); // Adjust size
-
-        return sprite;
+        document.body.appendChild(label);
+        return label;
     }
 
     /**
@@ -607,6 +771,7 @@ export class SceneManager {
 
     // Event handlers and utility methods...
     handleClick(event) {
+        console.log('🖱️ Canvas clicked');
         const rect = this.canvas.getBoundingClientRect();
         this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -614,11 +779,19 @@ export class SceneManager {
         this.raycaster.setFromCamera(this.mouse, this.camera);
         const intersects = this.raycaster.intersectObjects(this.interactiveObjects);
         
+        console.log('🎯 Intersections found:', intersects.length);
+        console.log('📊 Interactive objects count:', this.interactiveObjects.length);
+        
         if (intersects.length > 0) {
             const object = intersects[0].object;
             const systemData = this.systemData.get(object.id);
             
+            console.log('🔍 System data retrieved:', systemData);
+            console.log('🔗 onSystemClick callback exists:', !!this.onSystemClick);
+            
             if (systemData && this.onSystemClick) {
+                // Prevent event bubbling to avoid immediate close
+                event.stopPropagation();
                 this.onSystemClick(systemData);
             }
         }
@@ -634,20 +807,20 @@ export class SceneManager {
         
         this.canvas.style.cursor = intersects.length > 0 ? 'pointer' : 'default';
         
-        if (intersects.length > 0) {
-            const object = intersects[0].object;
-            const systemData = this.systemData.get(object.id);
-            
-            if (systemData && this.onSystemHover) {
-                this.onSystemHover(systemData);
-            }
-        }
+        // Just update cursor, no hover callbacks needed
     }
 
     toggleFilter(filterType, enabled) {
         const group = this.groups[filterType];
         if (group) {
             group.visible = enabled;
+        }
+        
+        // Handle label visibility
+        if (filterType === 'fleetCarriers') {
+            this.labelVisibility.fleetCarriers = enabled;
+        } else if (filterType === 'regionLabels') {
+            this.labelVisibility.regionLabels = enabled;
         }
     }
 
@@ -656,9 +829,17 @@ export class SceneManager {
             group.clear();
         });
         
+        // Clean up HTML labels
+        this.fcLabels.forEach(labelInfo => {
+            if (labelInfo.element && labelInfo.element.parentNode) {
+                labelInfo.element.parentNode.removeChild(labelInfo.element);
+            }
+        });
+        
         this.interactiveObjects.length = 0;
         this.systemData.clear();
         this.allSystems.clear();
+        this.systemNameMap.clear();
         this.fcLabels.length = 0;
     }
 
@@ -670,8 +851,8 @@ export class SceneManager {
             
             this.controls.update();
             
-            // Update FC labels to face camera
-            this.updateFCLabels();
+            // Update FC and region labels to face camera
+            this.updateLabels();
             
             // Animate objects
             this.scene.traverse((object) => {
@@ -694,25 +875,120 @@ export class SceneManager {
     }
 
     /**
-     * Update FC labels to maintain camera-relative positioning
+     * Update HTML labels with smart collision avoidance
      */
-    updateFCLabels() {
-        for (const fcLabel of this.fcLabels) {
-            const { label, fc3d, basePosition } = fcLabel;
+    updateLabels() {
+        // First pass: calculate base positions
+        const labelPositions = [];
+        
+        for (let i = 0; i < this.fcLabels.length; i++) {
+            const labelInfo = this.fcLabels[i];
+            const { element, position, type } = labelInfo;
             
-            // Calculate offset based on camera direction
-            const cameraDirection = new THREE.Vector3();
-            this.camera.getWorldDirection(cameraDirection);
+            // Check label visibility based on filter settings
+            let shouldShow = true;
+            if (type === 'fc' && !this.labelVisibility.fleetCarriers) {
+                shouldShow = false;
+            } else if (type === 'region' && !this.labelVisibility.regionLabels) {
+                shouldShow = false;
+            }
             
-            // Position label to the left of the FC
-            const leftOffset = new THREE.Vector3();
-            leftOffset.crossVectors(cameraDirection, this.camera.up).normalize();
-            leftOffset.multiplyScalar(3); // Offset distance
+            if (!shouldShow) {
+                element.style.display = 'none';
+                continue;
+            }
             
-            label.position.copy(fc3d.position).add(leftOffset);
+            // Project 3D position to screen coordinates
+            const screenPosition = position.clone().project(this.camera);
             
-            // Make label face camera
-            label.lookAt(this.camera.position);
+            // Check if behind camera
+            if (screenPosition.z > 1) {
+                element.style.display = 'none';
+                continue;
+            }
+            
+            // Convert to screen coordinates
+            let x = (screenPosition.x * 0.5 + 0.5) * this.canvas.clientWidth;
+            let y = ((-screenPosition.y * 0.5 + 0.5) * this.canvas.clientHeight);
+            
+            labelPositions.push({
+                index: i,
+                element,
+                originalX: x,
+                originalY: y,
+                x: x,
+                y: y,
+                type: type,
+                distance: position.distanceTo(this.camera.position)
+            });
+        }
+        
+        // Second pass: resolve collisions for FC labels using ergonomic spacing
+        this.resolveCollisions(labelPositions);
+        
+        // Third pass: apply final positions
+        for (const labelPos of labelPositions) {
+            const { element, x, y, type, distance } = labelPos;
+            
+            element.style.display = 'block';
+            element.style.left = `${x}px`;
+            element.style.top = `${y}px`;
+            element.style.transform = 'translate(-50%, -50%)';
+            
+            // Distance-based opacity for FC labels
+            if (type === 'fc') {
+                const opacity = Math.max(0.8, Math.min(1, 1 - (distance - 20) / 100));
+                element.style.opacity = opacity;
+            }
+        }
+    }
+    
+    /**
+     * Resolve label collisions using human-centered design principles
+     */
+    resolveCollisions(labelPositions) {
+        const fcLabels = labelPositions.filter(l => l.type === 'fc');
+        const COLLISION_DISTANCE = 50; // Minimum distance between FC labels
+        const MAX_ITERATIONS = 10;
+        
+        for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+            let hadCollision = false;
+            
+            for (let i = 0; i < fcLabels.length; i++) {
+                for (let j = i + 1; j < fcLabels.length; j++) {
+                    const label1 = fcLabels[i];
+                    const label2 = fcLabels[j];
+                    
+                    const dx = label1.x - label2.x;
+                    const dy = label1.y - label2.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < COLLISION_DISTANCE && distance > 0) {
+                        hadCollision = true;
+                        
+                        // Calculate separation vector
+                        const separationDistance = (COLLISION_DISTANCE - distance) * 0.5;
+                        const separationX = (dx / distance) * separationDistance;
+                        const separationY = (dy / distance) * separationDistance;
+                        
+                        // Move labels apart in a natural, readable pattern
+                        // Prefer horizontal separation for better readability
+                        const horizontalBias = 1.5;
+                        label1.x += separationX * horizontalBias;
+                        label1.y += separationY;
+                        label2.x -= separationX * horizontalBias;
+                        label2.y -= separationY;
+                        
+                        // Keep labels within screen bounds
+                        label1.x = Math.max(30, Math.min(this.canvas.clientWidth - 30, label1.x));
+                        label1.y = Math.max(20, Math.min(this.canvas.clientHeight - 20, label1.y));
+                        label2.x = Math.max(30, Math.min(this.canvas.clientWidth - 30, label2.x));
+                        label2.y = Math.max(20, Math.min(this.canvas.clientHeight - 20, label2.y));
+                    }
+                }
+            }
+            
+            if (!hadCollision) break;
         }
     }
 

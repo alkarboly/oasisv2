@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OASIS Community Map</title>
+    <title>Orion Star Cluster Community Map</title>
     
     <!-- Three.js Import Map for ES Modules -->
     <script type="importmap">
@@ -21,8 +21,8 @@
     <div id="app">
         <!-- Header -->
         <header class="header">
-            <h1>OASIS Community Map</h1>
-            <p>Elite Dangerous - OASIS Cluster Colonization Progress</p>
+            <h1>Orion Star Cluster Community Map</h1>
+            <p>Elite Dangerous - Orion Cluster Colonization Progress</p>
         </header>
 
         <!-- Main Content -->
@@ -42,19 +42,19 @@
                         </div>
                         <div class="legend-item">
                             <span class="legend-color" style="background: #00FF00; box-shadow: 0 0 10px #00FF00;"></span>
-                            <span>Complete Expedition Route</span>
+                            <span>Complete</span>
                         </div>
                         <div class="legend-item">
                             <span class="legend-color" style="background: #FF8000; box-shadow: 0 0 10px #FF8000;"></span>
-                            <span>In Progress Expedition Route</span>
+                            <span>In Progress</span>
                         </div>
                         <div class="legend-item">
                             <span class="legend-color" style="background: #FFFF00; box-shadow: 0 0 10px #FFFF00;"></span>
-                            <span>Planned Expedition Route</span>
+                            <span>Planned</span>
                         </div>
                         <div class="legend-item">
                             <span class="legend-color" style="background: #8000FF; box-shadow: 0 0 10px #8000FF;"></span>
-                            <span>Populated Systems</span>
+                            <span>Populated</span>
                         </div>
                         <div class="legend-item">
                             <span class="legend-color" style="background: #00FFFF; box-shadow: 0 0 10px #00FFFF;"></span>
@@ -62,7 +62,7 @@
                         </div>
                         <div class="legend-item">
                             <span class="legend-color" style="background: #FFFFFF; opacity: 0.6;"></span>
-                            <span>Unclaimed Stars</span>
+                            <span>Unclaimed</span>
                         </div>
                     </div>
                 </div>
@@ -77,19 +77,19 @@
                         </label>
                         <label class="filter-item">
                             <input type="checkbox" id="filter-routeCompleted" checked>
-                            <span>Complete Expedition Route</span>
+                            <span>Complete</span>
                         </label>
                         <label class="filter-item">
                             <input type="checkbox" id="filter-routeInProgress" checked>
-                            <span>In Progress Expedition Route</span>
+                            <span>In Progress</span>
                         </label>
                         <label class="filter-item">
                             <input type="checkbox" id="filter-routePlanned" checked>
-                            <span>Planned Expedition Route</span>
+                            <span>Planned</span>
                         </label>
                         <label class="filter-item">
                             <input type="checkbox" id="filter-populated" checked>
-                            <span>Populated Systems</span>
+                            <span>Populated</span>
                         </label>
                         <label class="filter-item">
                             <input type="checkbox" id="filter-fleetCarriers" checked>
@@ -97,7 +97,11 @@
                         </label>
                         <label class="filter-item">
                             <input type="checkbox" id="filter-unclaimedStars" checked>
-                            <span>Unclaimed Stars</span>
+                            <span>Unclaimed</span>
+                        </label>
+                        <label class="filter-item">
+                            <input type="checkbox" id="filter-regionLabels" checked>
+                            <span>Regions</span>
                         </label>
                     </div>
                 </div>
@@ -155,7 +159,7 @@
                         <span class="detail-value" id="route-status">Unknown</span>
                     </div>
                 </div>
-                <button class="close-btn" onclick="closeSystemInfo()">×</button>
+                <button class="close-btn" id="system-info-close">×</button>
             </div>
         </main>
 
