@@ -132,13 +132,13 @@ body {
     display: none;
     position: absolute;
     top: 50%;
-    right: -15px;
+    left: -15px;
     width: 30px;
     height: 60px;
     background: rgba(0, 0, 0, 0.9);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-left: none;
-    border-radius: 0 8px 8px 0;
+    border-right: none;
+    border-radius: 8px 0 0 8px;
     color: #4CAF50;
     font-size: 16px;
     cursor: pointer;
@@ -154,14 +154,14 @@ body {
 .mobile-toggle:hover {
     background: rgba(0, 0, 0, 1);
     border-color: #4CAF50;
-    right: -12px;
+    left: -12px;
 }
 
 .mobile-toggle.closed {
-    right: 10px;
-    border-left: 1px solid rgba(255, 255, 255, 0.2);
-    border-right: none;
-    border-radius: 8px 0 0 8px;
+    left: -45px;
+    border-right: 1px solid rgba(255, 255, 255, 0.2);
+    border-left: none;
+    border-radius: 0 8px 8px 0;
 }
 
 .controls-panel.hidden {
@@ -365,7 +365,7 @@ body {
     .mobile-toggle {
         display: flex;
         top: 50%;
-        right: -15px;
+        left: -15px;
     }
     
     .controls-panel {
