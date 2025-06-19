@@ -104,12 +104,12 @@ class OASISCommunityMap {
                 if (isHidden) {
                     controlsPanel.classList.remove('hidden');
                     mobileToggle.classList.remove('closed');
-                    mobileToggle.textContent = '▶';
+                    mobileToggle.textContent = '◀';
                     mobileToggle.title = 'Hide Controls';
                 } else {
                     controlsPanel.classList.add('hidden');
                     mobileToggle.classList.add('closed');
-                    mobileToggle.textContent = '◀';
+                    mobileToggle.textContent = '▶';
                     mobileToggle.title = 'Show Controls';
                 }
             });
@@ -161,11 +161,11 @@ class OASISCommunityMap {
             const isHidden = controlsPanel.classList.contains('hidden');
             if (isHidden) {
                 mobileToggle.classList.add('closed');
-                mobileToggle.textContent = '◀';
+                mobileToggle.textContent = '▶';
                 mobileToggle.title = 'Show Controls';
             } else {
                 mobileToggle.classList.remove('closed');
-                mobileToggle.textContent = '▶';
+                mobileToggle.textContent = '◀';
                 mobileToggle.title = 'Hide Controls';
             }
         }

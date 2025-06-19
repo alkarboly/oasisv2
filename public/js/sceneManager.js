@@ -137,7 +137,7 @@ export class SceneManager {
     setupCamera() {
         const aspect = this.canvas.clientWidth / this.canvas.clientHeight;
         this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
-        this.camera.position.set(0, 50, 150); // Move camera further back for better overview
+        this.camera.position.set(0, 60, 200); // Zoom out even more for better cluster overview
         this.camera.lookAt(0, 0, 0);
     }
 
