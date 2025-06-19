@@ -89,6 +89,26 @@ class OASISCommunityMap {
                 this.closeSystemInfo();
             }
         });
+
+        // Mobile toggle button
+        const mobileToggle = document.getElementById('mobile-toggle');
+        const controlsPanel = document.querySelector('.controls-panel');
+        
+        if (mobileToggle && controlsPanel) {
+            mobileToggle.addEventListener('click', () => {
+                const isHidden = controlsPanel.classList.contains('hidden');
+                
+                if (isHidden) {
+                    controlsPanel.classList.remove('hidden');
+                    mobileToggle.textContent = '☰';
+                    mobileToggle.title = 'Hide Controls';
+                } else {
+                    controlsPanel.classList.add('hidden');
+                    mobileToggle.textContent = '▶';
+                    mobileToggle.title = 'Show Controls';
+                }
+            });
+        }
     }
 
     setupFilters() {

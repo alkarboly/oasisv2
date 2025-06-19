@@ -121,9 +121,39 @@ body {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    z-index: 100;
+    z-index: 5000;
     pointer-events: none;
     max-width: 280px;
+    transition: transform 0.3s ease;
+}
+
+/* Mobile toggle button */
+.mobile-toggle {
+    display: none;
+    position: absolute;
+    top: 90px;
+    left: 20px;
+    width: 50px;
+    height: 50px;
+    background: rgba(0, 0, 0, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: #4CAF50;
+    font-size: 20px;
+    cursor: pointer;
+    z-index: 5001;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.mobile-toggle:hover {
+    background: rgba(0, 0, 0, 1);
+    border-color: #4CAF50;
+}
+
+.controls-panel.hidden {
+    transform: translateX(-100%);
 }
 
 /* Panel Base Styles */
@@ -238,7 +268,7 @@ body {
     padding: 1.25rem;
     min-width: 280px;
     max-width: 350px;
-    z-index: 200;
+    z-index: 15000;
     animation: slideInRight 0.3s ease;
 }
 
@@ -320,15 +350,33 @@ body {
         font-size: 1.25rem;
     }
     
+    .mobile-toggle {
+        display: flex;
+        top: 70px;
+        left: 10px;
+    }
+    
     .controls-panel {
         top: 70px;
         left: 10px;
         max-width: calc(100% - 20px);
+        background: rgba(0, 0, 0, 0.95);
+        backdrop-filter: blur(15px);
+        border-radius: 8px;
+        padding: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .controls-panel.hidden {
+        transform: translateX(calc(-100% - 20px));
     }
     
     .legend, .filters, .statistics {
         min-width: auto;
         padding: 0.75rem;
+        background: transparent;
+        border: none;
+        backdrop-filter: none;
     }
     
     .legend-items, .filter-group {
@@ -343,7 +391,7 @@ body {
         min-width: auto;
         max-width: none;
         padding: 1rem;
-        z-index: 250;
+        z-index: 20000;
     }
 }
 
@@ -360,9 +408,16 @@ body {
         font-size: 0.8rem;
     }
     
+    .mobile-toggle {
+        width: 45px;
+        height: 45px;
+        font-size: 18px;
+    }
+    
     .controls-panel {
         gap: 0.5rem;
-        max-width: 100%;
+        max-width: calc(100% - 20px);
+        padding: 0.75rem;
     }
     
     .legend h3, .filters h3, .statistics h3 {
@@ -372,6 +427,10 @@ body {
     
     .legend-item, .filter-item, .stat-item {
         font-size: 0.75rem;
+    }
+    
+    .system-info {
+        z-index: 25000;
     }
 }
 
@@ -399,6 +458,7 @@ body {
     cursor: pointer;
     transition: all 0.2s ease;
     user-select: none;
+    z-index: 1000;
 }
 
 .system-label:hover {

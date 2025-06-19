@@ -652,7 +652,7 @@ export class SceneManager {
             border: 1px solid rgba(0, 255, 255, 0.8);
             box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
             pointer-events: all;
-            z-index: 1001;
+            z-index: 1000;
             white-space: nowrap;
             transform: translate(-50%, -50%);
             min-width: 30px;
