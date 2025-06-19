@@ -1,5 +1,7 @@
 import { SceneManager } from './sceneManager.js';
 import { DataManager } from './dataManager.js';
+import { RoutePlanner } from './routePlanner.js';
+import { RoutePlannerUI } from './routePlannerUI.js';
 
 /**
  * Main Application Class
@@ -9,6 +11,8 @@ class OASISCommunityMap {
     constructor() {
         this.dataManager = new DataManager();
         this.sceneManager = new SceneManager('scene-canvas');
+        this.routePlanner = new RoutePlanner(this.sceneManager);
+        this.routePlannerUI = null; // Initialize later after DOM is ready
         
         this.isInitialized = false;
         this.loadingScreen = document.getElementById('loading-screen');
@@ -37,6 +41,11 @@ class OASISCommunityMap {
             
             // Setup filters
             this.setupFilters();
+            
+            // Initialize route planner UI
+            this.updateLoadingStatus('Initializing route planner...');
+            this.routePlannerUI = new RoutePlannerUI(this.routePlanner, this.sceneManager);
+            await this.routePlannerUI.initialize();
             
             // Hide loading screen
             this.hideLoadingScreen();
