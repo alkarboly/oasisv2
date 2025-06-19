@@ -200,7 +200,6 @@ class OASISCommunityMap {
             
             // Update UI elements
             this.updateStatElement('stat-total', stats.total);
-            this.updateStatElement('stat-route-progress', `${stats.routeProgress}%`);
             this.updateStatElement('stat-fleet-carriers', stats.fleetCarriers);
             this.updateStatElement('stat-populated', stats.populated);
             
@@ -225,7 +224,6 @@ class OASISCommunityMap {
         
         const stats = {
             total: this.sceneManager.allSystems.size,
-            routeProgress: totalRoute > 0 ? Math.round((routeCompleted / totalRoute) * 100) : 0,
             fleetCarriers: fleetCarriers,
             populated: groups.populated?.children?.length || 0
         };
@@ -410,6 +408,14 @@ class OASISCommunityMap {
             } else if (systemData.routeInfo['claimed?_'] === 'TRUE') {
                 status = 'In Progress';
             }
+            
+            // Add custom route info if available
+            if (systemData.routeInfo.customRoute) {
+                const routeName = systemData.routeInfo.routeName || 'Unknown Route';
+                const routeId = systemData.routeInfo.routeId || 'N/A';
+                status += ` (${routeName} #${routeId})`;
+            }
+            
             routeStatusElement.textContent = status;
         } else {
             routeInfo.style.display = 'none';
@@ -438,7 +444,17 @@ class OASISCommunityMap {
         if (loreData) {
             // Add image if available
             if (loreData.image) {
-                loreImage.innerHTML = `<img src="${loreData.image}" alt="${regionName}" />`;
+                const imgElement = document.createElement('img');
+                imgElement.src = loreData.image;
+                imgElement.alt = regionName;
+                imgElement.onerror = function() {
+                    console.error('Failed to load image:', loreData.image);
+                    this.style.display = 'none';
+                };
+                imgElement.onload = function() {
+                    console.log('Successfully loaded image:', loreData.image);
+                };
+                loreImage.appendChild(imgElement);
             }
 
             // Add description
@@ -482,7 +498,7 @@ class OASISCommunityMap {
                 discordName: "OASIS Discord"
             },
             "SoO": {
-                image: "images/ShouldOfOrion_thumb.jpg",
+                image: "./images/ShouldOfOrion_thumb.jpg",
                 description: `
                     <p><strong>The Shoulder of Orion Colonization Initiative</strong></p>
                     <p>A massive colonization train effort designed to create a chain of outposts from the Bubble to reach OSC I (OASIS). This historic endeavor brought together hundreds of Commanders in a coordinated effort to establish humanity's presence in the Orion Nebula Complex.</p>

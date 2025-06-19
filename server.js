@@ -134,6 +134,58 @@ async function loadAnchorSystems() {
   }
 }
 
+// Load custom route files
+async function loadCustomRoutes() {
+  try {
+    const routesPath = 'data/routes';
+    
+    // Check if routes directory exists
+    if (!fsSync.existsSync(routesPath)) {
+      console.log('📍 No custom routes directory found');
+      return {};
+    }
+    
+    const files = await fs.readdir(routesPath);
+    const csvFiles = files.filter(file => file.endsWith('.csv'));
+    
+    if (csvFiles.length === 0) {
+      console.log('📍 No CSV route files found');
+      return {};
+    }
+    
+    const customRoutes = {};
+    
+    for (const file of csvFiles) {
+      try {
+        const filePath = path.join(routesPath, file);
+        const csvData = await fs.readFile(filePath, 'utf8');
+        const lines = csvData.split('\n').slice(1); // Skip header
+        
+        const routeName = path.basename(file, '.csv');
+        customRoutes[routeName] = lines
+          .filter(line => line.trim())
+          .map(line => {
+            const [id, systemName, status] = line.split(',').map(s => s.trim());
+            return {
+              id: id || '',
+              system_name: systemName || '',
+              status: status || ''
+            };
+          });
+        
+        console.log(`📍 Loaded custom route "${routeName}" with ${customRoutes[routeName].length} systems`);
+      } catch (fileError) {
+        console.error(`❌ Error loading route file ${file}:`, fileError);
+      }
+    }
+    
+    return customRoutes;
+  } catch (error) {
+    console.error('❌ Error loading custom routes:', error);
+    return {};
+  }
+}
+
 // API Routes
 app.get('/api/health', (req, res) => {
   res.json({ 
@@ -261,6 +313,17 @@ app.get('/api/visualization-data', async (req, res) => {
   } catch (error) {
     console.error('❌ Failed to serve visualization data:', error);
     res.status(500).json({ error: 'Failed to serve visualization data' });
+  }
+});
+
+// API endpoint for custom routes
+app.get('/api/custom-routes', async (req, res) => {
+  try {
+    const customRoutes = await loadCustomRoutes();
+    res.json(customRoutes);
+  } catch (error) {
+    console.error('Error fetching custom routes:', error);
+    res.status(500).json({ error: 'Failed to load custom routes' });
   }
 });
 

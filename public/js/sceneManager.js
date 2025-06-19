@@ -278,13 +278,14 @@ export class SceneManager {
             await this.calculateSceneCenterFromAnchors();
 
             // Load additional data sources
-            const [sheetsData, specialData] = await Promise.all([
+            const [sheetsData, specialData, customRoutesData] = await Promise.all([
                 dataManager.loadSheetsData(),
-                this.loadSpecialSystems(dataManager)
+                this.loadSpecialSystems(dataManager),
+                dataManager.loadCustomRoutes()
             ]);
 
             // Process all systems with their roles and status
-            await this.processAllSystems(vizData.systems, sheetsData, specialData);
+            await this.processAllSystems(vizData.systems, sheetsData, specialData, customRoutesData);
             
             console.log(`✅ Loaded ${vizData.systems.length} systems into OASIS visualization`);
             
@@ -370,17 +371,28 @@ export class SceneManager {
     /**
      * Process all systems and categorize them based on their role in the colonization
      */
-    async processAllSystems(allSystems, sheetsData, specialData) {
+    async processAllSystems(allSystems, sheetsData, specialData, customRoutesData) {
         // Create lookup maps for efficient categorization with case-insensitive keys
         const routeMap = new Map();
         const fcMap = new Map();
         const specialMap = new Map();
+        const customRouteMap = new Map();
 
         // Build route system map
         if (sheetsData?.route) {
             sheetsData.route.forEach(system => {
                 const normalized = this.normalizeSystemName(system.system_name);
                 routeMap.set(normalized, system);
+            });
+        }
+
+        // Build custom routes map
+        if (customRoutesData) {
+            Object.entries(customRoutesData).forEach(([routeName, routeSystems]) => {
+                routeSystems.forEach(routeSystem => {
+                    const normalized = this.normalizeSystemName(routeSystem.system_name);
+                    customRouteMap.set(normalized, { ...routeSystem, routeName });
+                });
             });
         }
 
@@ -403,19 +415,23 @@ export class SceneManager {
         // Separate systems for different processing
         const specialSystems = [];
         const routeSystems = [];
+        const customRouteSystems = [];
         const populatedSystems = [];
         const unclaimedSystems = [];
 
-        // Categorize all systems
+        // Categorize all systems - prioritize populated over route completion
         for (const system of allSystems) {
             const normalized = this.normalizeSystemName(system.name);
             
             if (specialMap.has(normalized)) {
                 specialSystems.push(system);
+            } else if (system.information?.population > 0) {
+                // Prioritize populated systems over route status
+                populatedSystems.push(system);
             } else if (routeMap.has(normalized)) {
                 routeSystems.push({ system, routeInfo: routeMap.get(normalized) });
-            } else if (system.information?.population > 0) {
-                populatedSystems.push(system);
+            } else if (customRouteMap.has(normalized)) {
+                customRouteSystems.push({ system, routeInfo: customRouteMap.get(normalized) });
             } else {
                 unclaimedSystems.push(system);
             }
@@ -424,12 +440,13 @@ export class SceneManager {
         // Process each category
         await this.processSpecialSystems(specialSystems, specialData);
         await this.processRouteSystems(routeSystems);
+        await this.processCustomRoutes(customRouteSystems);
         await this.processPopulatedSystems(populatedSystems);
         await this.processFleetCarriers(sheetsData);
         await this.processRegionLabels(); // Add region labels
         this.createUnclaimedStarsParticles(unclaimedSystems);
 
-        console.log(`✅ Processed: ${specialSystems.length} special, ${routeSystems.length} route, ${populatedSystems.length} populated, ${unclaimedSystems.length} unclaimed`);
+        console.log(`✅ Processed: ${specialSystems.length} special, ${routeSystems.length} route, ${customRouteSystems.length} custom route, ${populatedSystems.length} populated, ${unclaimedSystems.length} unclaimed`);
     }
 
     /**
@@ -445,7 +462,7 @@ export class SceneManager {
             // Create key system with special effects - smaller size
             const geometry = new THREE.SphereGeometry(1.5, 16, 16);
             const material = new THREE.MeshBasicMaterial({
-                color: 0xFFD700,
+                color: 0xFFD700, // Gold (#FFD700) - matches legend
                 transparent: true,
                 opacity: 0.9
             });
@@ -588,20 +605,20 @@ export class SceneManager {
             const coords = this.scaleCoordinatesForScene(system.coords);
             let color, category, isPulsing = false;
 
-            // Determine status and appearance
+            // Determine status and appearance - colors match legend exactly
             if (routeInfo['completed?_'] === 'TRUE') {
-                color = 0x00ff00; // Bright green
+                color = 0x00FF00; // Green (#00FF00) - matches legend
                 category = 'routeCompleted';
             } else if (routeInfo['claimed?_'] === 'TRUE') {
-                color = 0xff8000; // Orange
+                color = 0xFF8000; // Orange (#FF8000) - matches legend
                 category = 'routeInProgress';
                 isPulsing = true;
             } else {
-                color = 0xffff00; // Yellow
+                color = 0xFFFF00; // Yellow (#FFFF00) - matches legend
                 category = 'routePlanned';
             }
 
-            // Create neon-style system - smaller size
+            // Create neon-style system with glow effect
             const geometry = new THREE.SphereGeometry(0.8, 12, 12);
             const material = new THREE.MeshBasicMaterial({
                 color: color,
@@ -612,6 +629,16 @@ export class SceneManager {
             const sphere = new THREE.Mesh(geometry, material);
             sphere.position.set(coords.x, coords.y, coords.z);
             if (isPulsing) sphere.userData.isPulsing = true;
+
+            // Add glow effect
+            const glowGeometry = new THREE.SphereGeometry(2, 12, 12);
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.3
+            });
+            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+            glow.position.copy(sphere.position);
 
             // Store system data
             this.systemData.set(sphere.id, {
@@ -625,8 +652,142 @@ export class SceneManager {
             });
 
             this.groups[category].add(sphere);
+            this.groups[category].add(glow);
             this.interactiveObjects.push(sphere);
         }
+    }
+
+    /**
+     * Process custom route systems with route line visualization
+     */
+    async processCustomRoutes(customRouteSystems) {
+        if (customRouteSystems.length === 0) return;
+
+        // Group systems by route name
+        const routeGroups = {};
+        customRouteSystems.forEach(({ system, routeInfo }) => {
+            if (!routeGroups[routeInfo.routeName]) {
+                routeGroups[routeInfo.routeName] = [];
+            }
+            routeGroups[routeInfo.routeName].push({ system, routeInfo });
+        });
+
+        console.log(`📍 Processing ${customRouteSystems.length} custom route systems in ${Object.keys(routeGroups).length} routes`);
+
+        // Process each route
+        Object.entries(routeGroups).forEach(([routeName, routeSystems]) => {
+            // Sort systems by ID for proper route order
+            routeSystems.sort((a, b) => {
+                const idA = parseInt(a.routeInfo.id) || 0;
+                const idB = parseInt(b.routeInfo.id) || 0;
+                return idA - idB;
+            });
+
+            // Create route line
+            this.createRouteLines(routeSystems, routeName);
+
+            // Create system markers
+            routeSystems.forEach(({ system, routeInfo }) => {
+                const coords = this.scaleCoordinatesForScene(system.coords);
+                let color, opacity;
+
+                // Color based on status - match legend exactly
+                switch (routeInfo.status?.toUpperCase()) {
+                    case 'DONE':
+                        color = 0x00FF00; // Green (#00FF00) - matches legend
+                        opacity = 1.0;
+                        break;
+                    case 'IN PROGRESS':
+                        color = 0xFF8000; // Orange (#FF8000) - matches legend
+                        opacity = 0.8;
+                        break;
+                    default:
+                        color = 0xFFFF00; // Yellow (#FFFF00) - matches legend
+                        opacity = 0.6;
+                        break;
+                }
+
+                // Create custom route system sphere with glow
+                const geometry = new THREE.SphereGeometry(1.2, 12, 12);
+                const material = new THREE.MeshBasicMaterial({
+                    color: color,
+                    transparent: true,
+                    opacity: opacity
+                });
+
+                const sphere = new THREE.Mesh(geometry, material);
+                sphere.position.set(coords.x, coords.y, coords.z);
+
+                // Add glow effect
+                const glowGeometry = new THREE.SphereGeometry(2.8, 12, 12);
+                const glowMaterial = new THREE.MeshBasicMaterial({
+                    color: color,
+                    transparent: true,
+                    opacity: 0.3
+                });
+                const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+                glow.position.copy(sphere.position);
+                
+                // Store system data for interaction - treat as planned route
+                sphere.userData = {
+                    name: system.name,
+                    category: 'routePlanned',
+                    coordinates: coords,
+                    originalCoordinates: system.coords,
+                    primaryStar: system.primaryStar,
+                    information: system.information,
+                    routeInfo: {
+                        'claimed?_': 'FALSE',
+                        'completed?_': routeInfo.status?.toUpperCase() === 'DONE' ? 'TRUE' : 'FALSE',
+                        'architect?_': '',
+                        'assigned_fc': '',
+                        system_name: system.name,
+                        // Custom route specific info
+                        customRoute: true,
+                        routeName: routeInfo.routeName,
+                        routeStatus: routeInfo.status,
+                        routeId: routeInfo.id
+                    }
+                };
+
+                // Add to planned routes group instead of custom routes
+                this.groups.routePlanned.add(sphere);
+                this.groups.routePlanned.add(glow);
+                this.interactiveObjects.push(sphere);
+                this.systemData.set(sphere.id, sphere.userData);
+            });
+
+            console.log(`✅ Created custom route "${routeName}" with ${routeSystems.length} systems`);
+        });
+    }
+
+    /**
+     * Create route lines connecting systems in order
+     */
+    createRouteLines(routeSystems, routeName) {
+        if (routeSystems.length < 2) return;
+
+        const points = routeSystems.map(({ system }) => {
+            const coords = this.scaleCoordinatesForScene(system.coords);
+            return new THREE.Vector3(coords.x, coords.y, coords.z);
+        });
+
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const material = new THREE.LineBasicMaterial({
+            color: 0xFFFF00, // Yellow (#FFFF00) - matches legend
+            opacity: 0.7,
+            transparent: true,
+            linewidth: 2
+        });
+
+        const line = new THREE.Line(geometry, material);
+        line.userData = {
+            type: 'routeLine',
+            routeName: routeName
+        };
+
+        this.groups.routePlanned.add(line);
+        console.log(`📍 Created yellow route line for "${routeName}" connecting ${points.length} systems`);
     }
 
     /**
@@ -639,13 +800,23 @@ export class SceneManager {
 
             const geometry = new THREE.SphereGeometry(size, 10, 10);
             const material = new THREE.MeshBasicMaterial({
-                color: 0x8000ff, // Purple
+                color: 0x8000FF, // Purple (#8000FF) - matches legend
                 transparent: true,
                 opacity: 0.8
             });
 
             const sphere = new THREE.Mesh(geometry, material);
             sphere.position.set(coords.x, coords.y, coords.z);
+
+            // Add glow effect
+            const glowGeometry = new THREE.SphereGeometry(size + 1, 10, 10);
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: 0x8000FF,
+                transparent: true,
+                opacity: 0.3
+            });
+            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+            glow.position.copy(sphere.position);
 
             // Store system data
             this.systemData.set(sphere.id, {
@@ -658,6 +829,7 @@ export class SceneManager {
             });
 
             this.groups.populated.add(sphere);
+            this.groups.populated.add(glow);
             this.interactiveObjects.push(sphere);
         }
     }
@@ -678,10 +850,10 @@ export class SceneManager {
             const coords = this.scaleCoordinatesForScene(system.coords);
             coords.y += 2; // Offset above system
 
-            // Create FC octahedron - smaller size
+            // Create FC octahedron with glow effect
             const geometry = new THREE.OctahedronGeometry(1);
             const material = new THREE.MeshBasicMaterial({
-                color: 0x00ffff, // Cyan
+                color: 0x00FFFF, // Cyan (#00FFFF) - matches legend
                 transparent: true,
                 opacity: 0.9
             });
@@ -689,6 +861,17 @@ export class SceneManager {
             const fc3d = new THREE.Mesh(geometry, material);
             fc3d.position.set(coords.x, coords.y, coords.z);
             fc3d.userData.isRotating = true;
+
+            // Add glow effect
+            const glowGeometry = new THREE.OctahedronGeometry(2.5);
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00FFFF,
+                transparent: true,
+                opacity: 0.2
+            });
+            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+            glow.position.copy(fc3d.position);
+            glow.userData.isRotating = true;
 
             // Create HTML text label for better visibility
             const label = this.createFCLabel(fc);
@@ -706,6 +889,7 @@ export class SceneManager {
             });
 
             this.groups.fleetCarriers.add(fc3d);
+            this.groups.fleetCarriers.add(glow);
             this.interactiveObjects.push(fc3d);
             
             // Store label for screen-space updates

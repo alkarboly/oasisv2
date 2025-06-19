@@ -270,7 +270,9 @@ body {
     border-radius: 8px;
     padding: 1.25rem;
     min-width: 280px;
-    max-width: 350px;
+    max-width: 450px;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
     z-index: 15000;
     animation: slideInRight 0.3s ease;
 }
@@ -389,6 +391,7 @@ body {
         right: 10px;
         min-width: auto;
         max-width: none;
+        max-height: calc(100vh - 90px);
         padding: 1rem;
         z-index: 20000;
     }
@@ -452,6 +455,26 @@ body {
 
 .controls-panel::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.5);
+}
+
+/* System Info Scrollbar */
+.system-info::-webkit-scrollbar {
+    width: 6px;
+}
+
+.system-info::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    margin: 8px 0;
+}
+
+.system-info::-webkit-scrollbar-thumb {
+    background: rgba(76, 175, 80, 0.5);
+    border-radius: 3px;
+}
+
+.system-info::-webkit-scrollbar-thumb:hover {
+    background: rgba(76, 175, 80, 0.7);
 }
 
 /* System Labels */
@@ -631,17 +654,36 @@ body {
     height: auto;
     border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 .lore-description {
-    font-size: 0.85rem;
-    line-height: 1.5;
+    font-size: 0.9rem;
+    line-height: 1.6;
     color: rgba(255, 255, 255, 0.9);
     margin-bottom: 1rem;
 }
 
+.lore-description p {
+    margin-bottom: 0.75rem;
+}
+
+.lore-description ul {
+    margin: 0.75rem 0;
+    padding-left: 1.5rem;
+}
+
+.lore-description li {
+    margin-bottom: 0.25rem;
+}
+
+.lore-description strong {
+    color: #4CAF50;
+}
+
 .lore-discord {
     text-align: center;
+    margin-top: 1rem;
 }
 
 .lore-discord a {
