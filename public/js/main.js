@@ -202,6 +202,7 @@ class OASISCommunityMap {
             this.updateStatElement('stat-total', stats.total);
             this.updateStatElement('stat-fleet-carriers', stats.fleetCarriers);
             this.updateStatElement('stat-populated', stats.populated);
+            // Active expeditions is static content, already set in HTML
             
         } catch (error) {
             console.error('❌ Failed to update statistics:', error);

@@ -115,11 +115,15 @@ export class SceneManager {
      */
     getRegionBlurbs() {
         return {
+            "OASIS": "The heart of the Orion Star Cluster colonization effort. This memorial system serves as the primary hub and staging area for all expedition activities in the region.",
+            "Lambda Orionis": "Also known as the Golden Chain, this region has been successfully stabilized by The Dark Wheel. Resources are flowing and this serves as the launching point for Operation Laden Swallow.",
+            "OSC III": "Orion Star Cluster Phase III expansion zone. The current frontier of active colonization efforts, pushing deeper into the Orion region.",
+            "SoO": "Shoulder of Orion region, marking the outer boundaries of the primary colonization zone. A strategic waypoint for deep space operations.",
+            "Horsehead Nebula": "The eastern objective of Operation Laden Swallow. This dark nebula silhouetted against bright emission regions represents The Dark Wheel's next major expansion target, requiring a secure route of civilian outposts.",
             "Orion Core": "The heart of the Orion Star Cluster, containing the densest concentration of systems and the primary colonization hub. This region serves as the main staging area for expeditions.",
             "Orion Nebula": "The spectacular stellar nursery region where new stars are born. Rich in rare materials and exotic phenomena, this area presents unique exploration opportunities.",
             "Trapezium Cluster": "A young, hot star cluster within the Orion Nebula, known for its brilliant blue giants and active stellar formation. Home to some of the most luminous stars in the region.",
             "Orion Belt": "The iconic three-star alignment visible from Earth, serving as a navigational landmark for pilots. These massive blue supergiants are among the most recognizable features in human space.",
-            "Horsehead Nebula": "A dark nebula silhouetted against the bright emission nebula IC 434. This region offers unique research opportunities in stellar formation and interstellar medium studies.",
             "Flame Nebula": "A bright emission nebula illuminated by the nearby star Alnitak. Known for its distinctive reddish glow and active star formation regions.",
             "Orion Outer Rim": "The frontier regions of the Orion Cluster, where brave explorers push the boundaries of known space. Less populated but rich in discovery potential.",
             "Barnard's Loop": "A large arc of ionized gas surrounding much of the Orion constellation. This ancient supernova remnant creates a spectacular backdrop for deep space operations.",
@@ -601,6 +605,18 @@ export class SceneManager {
      * Process route systems
      */
     async processRouteSystems(routeSystems) {
+        // Sort systems by order for proper route line connection
+        const sortedRouteSystems = [...routeSystems].sort((a, b) => {
+            const orderA = parseInt(a.routeInfo['#']) || 0;
+            const orderB = parseInt(b.routeInfo['#']) || 0;
+            return orderA - orderB;
+        });
+
+        // Create route lines connecting all expedition systems
+        if (sortedRouteSystems.length > 1) {
+            this.createExpeditionRouteLines(sortedRouteSystems);
+        }
+
         for (const { system, routeInfo } of routeSystems) {
             const coords = this.scaleCoordinatesForScene(system.coords);
             let color, category, isPulsing = false;
@@ -759,6 +775,35 @@ export class SceneManager {
 
             console.log(`✅ Created custom route "${routeName}" with ${routeSystems.length} systems`);
         });
+    }
+
+    /**
+     * Create expedition route lines connecting main route systems in order
+     */
+    createExpeditionRouteLines(routeSystems) {
+        if (routeSystems.length < 2) return;
+
+        const points = routeSystems.map(({ system }) => {
+            const coords = this.scaleCoordinatesForScene(system.coords);
+            return new THREE.Vector3(coords.x, coords.y, coords.z);
+        });
+
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const material = new THREE.LineBasicMaterial({
+            color: 0xFFFF00, // Yellow (#FFFF00) - matches legend
+            opacity: 0.7,
+            transparent: true,
+            linewidth: 2
+        });
+
+        const line = new THREE.Line(geometry, material);
+        line.userData = {
+            type: 'expeditionRouteLine',
+            routeName: 'Main Expedition Route'
+        };
+
+        this.groups.routePlanned.add(line);
+        console.log(`📍 Created expedition route line connecting ${points.length} systems`);
     }
 
     /**

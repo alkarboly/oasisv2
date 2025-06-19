@@ -259,6 +259,18 @@ body {
     color: #4CAF50;
 }
 
+/* Special styling for expeditions stat item */
+.stat-expeditions {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+}
+
+.stat-expeditions #stat-expeditions {
+    align-self: flex-end;
+    line-height: 1.4;
+}
+
 /* System Info Panel */
 .system-info {
     position: absolute;
