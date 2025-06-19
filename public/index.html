@@ -30,13 +30,8 @@
             <!-- 3D Scene Canvas -->
             <canvas id="scene-canvas" class="scene-canvas"></canvas>
 
-            <!-- Mobile Toggle Button -->
-            <button id="mobile-toggle" class="mobile-toggle closed" title="Show Controls">
-                ◀
-            </button>
-
             <!-- Controls Panel -->
-            <div class="controls-panel hidden">
+            <div class="controls-panel mobile-hidden">
                 <!-- Legend -->
                 <div class="legend">
                     <h3>System Types</h3>
@@ -166,6 +161,11 @@
                 </div>
                 <button class="close-btn" id="system-info-close">×</button>
             </div>
+
+            <!-- Mobile Menu Toggle -->
+            <button id="mobile-menu-toggle" class="mobile-menu-toggle" title="Toggle Menu">
+                ☰
+            </button>
         </main>
 
         <!-- Loading Screen -->
@@ -185,7 +185,7 @@
                 <p>Here's how to navigate your galactic journey:</p>
                 <ul>
                     <li><strong>🖱️ Navigate:</strong> Drag to rotate, pinch/scroll to zoom</li>
-                    <li><strong>📱 Controls:</strong> Tap the arrow (◀) to show/hide filters and legend</li>
+                    <li><strong>📱 Controls:</strong> Tap the menu button (☰) to show/hide filters and legend</li>
                     <li><strong>🎯 Interact:</strong> Tap any system or label for detailed information</li>
                     <li><strong>🔍 Filter:</strong> Use checkboxes to show/hide different system types</li>
                     <li><strong>📊 Stats:</strong> View expedition progress and system counts</li>

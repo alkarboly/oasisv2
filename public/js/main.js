@@ -93,24 +93,22 @@ class OASISCommunityMap {
             }
         });
 
-        // Mobile toggle button
-        const mobileToggle = document.getElementById('mobile-toggle');
+        // Mobile menu toggle button
+        const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
         const controlsPanel = document.querySelector('.controls-panel');
         
-        if (mobileToggle && controlsPanel) {
-            mobileToggle.addEventListener('click', () => {
-                const isHidden = controlsPanel.classList.contains('hidden');
+        if (mobileMenuToggle && controlsPanel) {
+            mobileMenuToggle.addEventListener('click', () => {
+                const isHidden = controlsPanel.classList.contains('mobile-hidden');
                 
                 if (isHidden) {
-                    controlsPanel.classList.remove('hidden');
-                    mobileToggle.classList.remove('closed');
-                    mobileToggle.textContent = '◀';
-                    mobileToggle.title = 'Hide Controls';
+                    controlsPanel.classList.remove('mobile-hidden');
+                    mobileMenuToggle.textContent = '✕';
+                    mobileMenuToggle.title = 'Close Menu';
                 } else {
-                    controlsPanel.classList.add('hidden');
-                    mobileToggle.classList.add('closed');
-                    mobileToggle.textContent = '▶';
-                    mobileToggle.title = 'Show Controls';
+                    controlsPanel.classList.add('mobile-hidden');
+                    mobileMenuToggle.textContent = '☰';
+                    mobileMenuToggle.title = 'Open Menu';
                 }
             });
         }
@@ -148,25 +146,25 @@ class OASISCommunityMap {
 
     setupMobileDefaults() {
         const controlsPanel = document.querySelector('.controls-panel');
-        const mobileToggle = document.getElementById('mobile-toggle');
+        const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
         
         // On desktop, show panel by default
-        // On mobile, keep it hidden (already has 'hidden' class in HTML)
+        // On mobile, keep it hidden
         if (window.innerWidth > 768 && controlsPanel) {
-            controlsPanel.classList.remove('hidden');
+            controlsPanel.classList.remove('mobile-hidden');
+        } else if (controlsPanel) {
+            controlsPanel.classList.add('mobile-hidden');
         }
         
         // Update toggle button state based on panel visibility
-        if (mobileToggle && controlsPanel) {
-            const isHidden = controlsPanel.classList.contains('hidden');
+        if (mobileMenuToggle && controlsPanel) {
+            const isHidden = controlsPanel.classList.contains('mobile-hidden');
             if (isHidden) {
-                mobileToggle.classList.add('closed');
-                mobileToggle.textContent = '▶';
-                mobileToggle.title = 'Show Controls';
+                mobileMenuToggle.textContent = '☰';
+                mobileMenuToggle.title = 'Open Menu';
             } else {
-                mobileToggle.classList.remove('closed');
-                mobileToggle.textContent = '◀';
-                mobileToggle.title = 'Hide Controls';
+                mobileMenuToggle.textContent = '✕';
+                mobileMenuToggle.title = 'Close Menu';
             }
         }
     }
