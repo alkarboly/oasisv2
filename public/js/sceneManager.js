@@ -59,7 +59,7 @@ export class SceneManager {
         this.fcLabels = []; // Fleet carrier and region HTML labels
         this.labelVisibility = {
             fleetCarriers: true,
-            regionLabels: true
+            regionLabels: false  // Off by default
         };
         
         // Animation properties
@@ -89,6 +89,9 @@ export class SceneManager {
         Object.values(this.groups).forEach(group => {
             this.scene.add(group);
         });
+        
+        // Set initial visibility for filters that are off by default
+        this.groups.unclaimedStars.visible = false;  // Unclaimed stars off by default
         
         this.startAnimation();
         console.log('🎬 OASIS Sci-Fi Scene initialized');
