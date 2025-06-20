@@ -66,9 +66,7 @@ export class SceneManager {
         this.animationId = null;
         this.time = 0;
         
-        // Auto-rotation settings
-        this.lastInteraction = Date.now();
-        this.interactionTimeout = 3000; // Resume auto-rotation after 3 seconds of no interaction
+        // Auto-rotation disabled
         
         // Event callback
         this.onSystemClick = null;
@@ -172,14 +170,14 @@ export class SceneManager {
         this.controls.maxDistance = 300;
         this.controls.maxPolarAngle = Math.PI;
         
-        // Enable smooth auto-rotation
-        this.controls.autoRotate = true;
-        this.controls.autoRotateSpeed = 0.5; // Degrees per second
-        console.log('🔄 Auto-rotation enabled at', this.controls.autoRotateSpeed, 'degrees/second');
+        // Auto-rotation disabled
+        this.controls.autoRotate = false;
+        this.controls.autoRotateSpeed = 0; // Disabled
+        console.log('🚫 Auto-rotation disabled');
         
-        // Listen for user interactions to pause auto-rotation
+        // Listen for user interactions
         this.controls.addEventListener('start', () => {
-            console.log('🎮 OrbitControls interaction started - pausing auto-rotation');
+            console.log('🎮 OrbitControls interaction started');
             this.onUserInteraction();
         });
         
@@ -220,7 +218,7 @@ export class SceneManager {
         this.canvas.addEventListener('click', (event) => this.handleClick(event));
         this.canvas.addEventListener('mousemove', (event) => this.handleMouseMove(event));
         
-        // Listen for mouse interactions to pause auto-rotation
+        // Listen for mouse interactions
         this.canvas.addEventListener('mousedown', () => this.onUserInteraction());
         this.canvas.addEventListener('wheel', () => this.onUserInteraction());
         this.canvas.addEventListener('touchstart', () => this.onUserInteraction());
@@ -1174,12 +1172,10 @@ export class SceneManager {
     }
 
     /**
-     * Handle user interaction - pause auto-rotation
+     * Handle user interaction (auto-rotation disabled)
      */
     onUserInteraction() {
-        this.lastInteraction = Date.now();
-        this.controls.autoRotate = false;
-        console.log('🚫 Auto-rotation paused due to user interaction');
+        // Auto-rotation is permanently disabled, no action needed
     }
 
     startAnimation() {
@@ -1188,12 +1184,7 @@ export class SceneManager {
             
             this.time += 0.01;
             
-            // Check if we should resume auto-rotation
-            const timeSinceInteraction = Date.now() - this.lastInteraction;
-            if (!this.controls.autoRotate && timeSinceInteraction > this.interactionTimeout) {
-                this.controls.autoRotate = true;
-                console.log('🔄 Auto-rotation resumed after', timeSinceInteraction, 'ms of inactivity');
-            }
+            // Auto-rotation permanently disabled
             
             this.controls.update();
             
