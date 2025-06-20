@@ -141,9 +141,8 @@ body {
     right: clamp(15px, 3vw, 25px); /* Responsive right position */
     width: clamp(45px, 8vw, 55px); /* Responsive width */
     height: clamp(45px, 8vw, 55px); /* Responsive height */
-    background: rgba(0, 0, 0, 0.9);
-    border: 2px solid #4CAF50;
-    border-radius: 50%;
+    background: transparent;
+    border: none;
     color: #4CAF50;
     font-size: clamp(16px, 3vw, 20px); /* Responsive font size */
     cursor: pointer;
@@ -151,12 +150,9 @@ body {
     align-items: center;
     justify-content: center;
     transition: all 0.3s ease;
-    backdrop-filter: blur(10px);
 }
 
 .mobile-menu-toggle:hover {
-    background: rgba(76, 175, 80, 0.1);
-    border-color: #66BB6A;
     color: #66BB6A;
     transform: scale(1.05);
 }
@@ -926,31 +922,7 @@ body {
     box-shadow: 0 5px 15px rgba(0, 255, 255, 0.3);
 }
 
-/* Mobile Route Planner Button */
-.mobile-route-button {
-    position: fixed;
-    bottom: clamp(15px, 3vh, 25px); /* Responsive bottom position */
-    right: clamp(15px, 3vw, 25px); /* Responsive right position */
-    z-index: 2000;
-    display: none; /* Hidden by default, shown on mobile */
-    width: clamp(50px, 10vw, 70px); /* Responsive width */
-    height: clamp(50px, 10vw, 70px); /* Responsive height */
-    background: linear-gradient(135deg, #00ffff 0%, #0080ff 100%);
-    border: none;
-    border-radius: 50%;
-    color: #000;
-    font-size: clamp(20px, 4vw, 28px); /* Responsive font size */
-    font-weight: bold;
-    cursor: pointer;
-    box-shadow: 0 4px 20px rgba(0, 255, 255, 0.4);
-    transition: all 0.3s ease;
-}
 
-.mobile-route-button:hover,
-.mobile-route-button:active {
-    transform: scale(1.1);
-    box-shadow: 0 6px 25px rgba(0, 255, 255, 0.6);
-}
 
 .route-planner {
     position: fixed;
@@ -1347,15 +1319,21 @@ body {
     word-break: break-word;
 }
 
+.clickable-system-name {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+.clickable-system-name:hover {
+    background: rgba(0, 255, 255, 0.1);
+    color: #00ffff;
+    transform: translateX(2px);
+}
+
 /* Mobile Responsiveness for Route Planner */
 @media (max-width: 768px) {
-    /* Show mobile route button, hide desktop one */
-    .mobile-route-button {
-        display: flex !important;
-        align-items: center;
-        justify-content: center;
-    }
-    
     .route-planning {
         display: none; /* Hide desktop route planning section on mobile */
     }
@@ -1414,14 +1392,6 @@ body {
 }
 
 @media (max-width: 480px) {
-    .mobile-route-button {
-        bottom: 15px;
-        right: 15px;
-        width: 55px;
-        height: 55px;
-        font-size: 20px;
-    }
-    
     .route-planner {
         width: 98vw;
         max-height: 98vh;

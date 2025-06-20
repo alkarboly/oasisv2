@@ -161,7 +161,7 @@ export class RoutePlannerUI {
             // Check if clicked element or its parent is the route planner button
             let target = e.target;
             while (target && target !== document) {
-                if (target.id === 'toggle-route-planner' || target.id === 'mobile-route-planner') {
+                if (target.id === 'toggle-route-planner') {
                     console.log('🗺️ Route planner button clicked');
                     this.toggle();
                     return;
@@ -212,14 +212,7 @@ export class RoutePlannerUI {
                 this.exportRoute('csv');
             });
             
-            // Close on outside click (but not when dragging)
-            document.addEventListener('click', (e) => {
-                if (this.isVisible && !this.panel.contains(e.target) && 
-                    !document.getElementById('toggle-route-planner')?.contains(e.target) &&
-                    !document.getElementById('mobile-route-planner')?.contains(e.target)) {
-                    this.hide();
-                }
-            });
+            // Note: Removed auto-close on outside click - user must use close button
             
             // Close suggestions on outside click
             document.addEventListener('click', (e) => {
@@ -472,12 +465,21 @@ export class RoutePlannerUI {
             return `
                 <div class="route-system-item">
                     <span class="system-number">${index + 1}.</span>
-                    <span class="system-name">${system.name || 'Unknown System'}</span>
+                    <span class="system-name clickable-system-name" data-system-name="${system.name || 'Unknown System'}" title="Click to copy system name">${system.name || 'Unknown System'}</span>
                 </div>
             `;
         }).join('');
         
         systemsList.innerHTML = systemsHTML;
+        
+        // Add click event listeners to copy system names
+        const clickableNames = systemsList.querySelectorAll('.clickable-system-name');
+        clickableNames.forEach(nameElement => {
+            nameElement.addEventListener('click', (e) => {
+                const systemName = e.target.getAttribute('data-system-name');
+                this.copyToClipboard(systemName);
+            });
+        });
     }
     
 
@@ -490,6 +492,29 @@ export class RoutePlannerUI {
         const dz = system1.coords.z - system2.coords.z;
         
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    async copyToClipboard(text) {
+        try {
+            await navigator.clipboard.writeText(text);
+            this.showSuccess(`Copied "${text}" to clipboard`);
+            console.log('📋 Copied to clipboard:', text);
+        } catch (err) {
+            console.error('❌ Failed to copy to clipboard:', err);
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                this.showSuccess(`Copied "${text}" to clipboard`);
+            } catch (fallbackErr) {
+                console.error('❌ Fallback copy failed:', fallbackErr);
+                this.showError('Failed to copy to clipboard');
+            }
+            document.body.removeChild(textArea);
+        }
     }
     
 
