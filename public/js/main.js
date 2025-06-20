@@ -42,6 +42,7 @@ class OASISCommunityMap {
             // Setup filters
             this.setupFilters();
             
+
             // Initialize route planner UI
             this.updateLoadingStatus('Initializing route planner...');
             this.routePlannerUI = new RoutePlannerUI(this.routePlanner, this.sceneManager);
@@ -201,6 +202,8 @@ class OASISCommunityMap {
             }
         });
     }
+
+
 
     async updateStatistics() {
         try {

@@ -86,6 +86,14 @@ export class RoutePlannerUI {
                         </div>
                     </div>
                     
+                    <!-- Route Systems List -->
+                    <div class="route-systems-section" id="route-systems-section">
+                        <h4>Route Systems</h4>
+                        <div class="route-systems-list" id="route-systems-list">
+                            <!-- Systems will be populated here -->
+                        </div>
+                    </div>
+                    
                     <div class="route-actions">
                         <button class="btn btn-export" id="export-json">Export JSON</button>
                         <button class="btn btn-export" id="export-csv">Export CSV</button>
@@ -180,6 +188,8 @@ export class RoutePlannerUI {
         document.getElementById('export-csv')?.addEventListener('click', () => {
             this.exportRoute('csv');
         });
+        
+
         
         // Close on outside click
         document.addEventListener('click', (e) => {
@@ -391,8 +401,73 @@ export class RoutePlannerUI {
             waypointInfo.style.display = 'none';
         }
         
+        // Populate systems list
+        this.populateSystemsList(routeData);
+        
         resultsSection.style.display = 'block';
     }
+
+    populateSystemsList(routeData) {
+        console.log('🔍 DEBUG: populateSystemsList called with:', routeData);
+        
+        const systemsList = document.getElementById('route-systems-list');
+        if (!systemsList) {
+            console.error('❌ Systems list element not found');
+            return;
+        }
+        
+        if (!routeData) {
+            console.error('❌ No route data provided');
+            return;
+        }
+        
+        console.log('🔍 DEBUG: Route data structure:', Object.keys(routeData));
+        console.log('🔍 DEBUG: Route data path:', routeData.path);
+        console.log('🔍 DEBUG: Route data route:', routeData.route);
+        
+        // Try different possible path structures
+        const systems = routeData.path || routeData.route || routeData.systems || [];
+        console.log('🔍 DEBUG: Systems array:', systems);
+        
+        if (!systems || systems.length === 0) {
+            console.warn('⚠️ No systems found in route data');
+            systemsList.innerHTML = '<div style="padding: 1rem; text-align: center; color: rgba(255,255,255,0.6);">No systems found in route</div>';
+            return;
+        }
+        
+        let totalDistance = 0;
+        
+        const systemsHTML = systems.map((system, index) => {
+            let distanceFromPrevious = 0;
+            if (index > 0) {
+                distanceFromPrevious = this.calculateDistance(systems[index - 1], system);
+                totalDistance += distanceFromPrevious;
+            }
+            
+            return `
+                <div class="route-system-item">
+                    <span class="system-number">${index + 1}.</span>
+                    <span class="system-name">${system.name || 'Unknown System'}</span>
+                </div>
+            `;
+        }).join('');
+        
+        systemsList.innerHTML = systemsHTML;
+    }
+    
+
+    
+    calculateDistance(system1, system2) {
+        if (!system1.coords || !system2.coords) return 0;
+        
+        const dx = system1.coords.x - system2.coords.x;
+        const dy = system1.coords.y - system2.coords.y;
+        const dz = system1.coords.z - system2.coords.z;
+        
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+    
+
 
     hideResults() {
         const resultsSection = document.getElementById('route-results');

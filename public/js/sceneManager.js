@@ -62,6 +62,9 @@ export class SceneManager {
             regionLabels: false  // Off by default
         };
         
+        // Route tracking for show/hide functionality
+        this.routeObjects = new Map(); // Map of route names to their 3D objects
+        
         // Animation properties
         this.animationId = null;
         this.time = 0;
@@ -767,6 +770,12 @@ export class SceneManager {
                     }
                 };
 
+                // Track route objects for show/hide functionality
+                if (!this.routeObjects.has(routeInfo.routeName)) {
+                    this.routeObjects.set(routeInfo.routeName, []);
+                }
+                this.routeObjects.get(routeInfo.routeName).push(sphere, glow);
+
                 // Add to planned routes group instead of custom routes
                 this.groups.routePlanned.add(sphere);
                 this.groups.routePlanned.add(glow);
@@ -831,6 +840,12 @@ export class SceneManager {
             type: 'routeLine',
             routeName: routeName
         };
+
+        // Track route object for show/hide functionality
+        if (!this.routeObjects.has(routeName)) {
+            this.routeObjects.set(routeName, []);
+        }
+        this.routeObjects.get(routeName).push(line);
 
         this.groups.routePlanned.add(line);
         console.log(`📍 Created yellow route line for "${routeName}" connecting ${points.length} systems`);
@@ -1150,6 +1165,78 @@ export class SceneManager {
         } else if (filterType === 'regionLabels') {
             this.labelVisibility.regionLabels = enabled;
         }
+    }
+
+    /**
+     * Show a specific custom route by name
+     */
+    showRoute(routeName) {
+        const routeObjects = this.routeObjects.get(routeName);
+        if (!routeObjects) {
+            console.warn(`⚠️ Route "${routeName}" not found`);
+            return;
+        }
+
+        routeObjects.forEach(object => {
+            object.visible = true;
+        });
+        
+        console.log(`✅ Showing route: ${routeName} (${routeObjects.length} objects)`);
+    }
+
+    /**
+     * Hide a specific custom route by name
+     */
+    hideRoute(routeName) {
+        const routeObjects = this.routeObjects.get(routeName);
+        if (!routeObjects) {
+            console.warn(`⚠️ Route "${routeName}" not found`);
+            return;
+        }
+
+        routeObjects.forEach(object => {
+            object.visible = false;
+        });
+        
+        console.log(`🚫 Hidden route: ${routeName} (${routeObjects.length} objects)`);
+    }
+
+    /**
+     * Get system data by name
+     */
+    getSystemByName(systemName) {
+        // Search through all interactive objects for the system
+        for (const object of this.interactiveObjects) {
+            const data = this.systemData.get(object.id);
+            if (data && data.name === systemName) {
+                return data;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Focus camera on a specific system
+     */
+    focusOnSystem(systemData) {
+        if (!systemData || !systemData.coordinates) return;
+
+        const targetPosition = new THREE.Vector3(
+            systemData.coordinates.x,
+            systemData.coordinates.y,
+            systemData.coordinates.z
+        );
+
+        // Calculate a good camera position (offset from the target)
+        const offset = new THREE.Vector3(20, 20, 20);
+        const cameraPosition = targetPosition.clone().add(offset);
+
+        // Smoothly animate camera to the new position
+        this.controls.target.copy(targetPosition);
+        this.camera.position.copy(cameraPosition);
+        this.controls.update();
+
+        console.log(`🎯 Camera focused on ${systemData.name} at ${targetPosition.x}, ${targetPosition.y}, ${targetPosition.z}`);
     }
 
     clearScene() {
