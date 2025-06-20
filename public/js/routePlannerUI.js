@@ -145,7 +145,7 @@ export class RoutePlannerUI {
     setupEventListeners() {
         // Toggle route planner - use event delegation since button is created dynamically
         document.addEventListener('click', (e) => {
-            if (e.target && e.target.id === 'toggle-route-planner') {
+            if (e.target && (e.target.id === 'toggle-route-planner' || e.target.id === 'mobile-route-planner')) {
                 console.log('🗺️ Route planner button clicked');
                 this.toggle();
             }

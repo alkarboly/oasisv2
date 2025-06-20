@@ -41,10 +41,6 @@
                             <span>Key Systems</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-color" style="background: #00FF00; box-shadow: 0 0 10px #00FF00;"></span>
-                            <span>Complete</span>
-                        </div>
-                        <div class="legend-item">
                             <span class="legend-color" style="background: #FF8000; box-shadow: 0 0 10px #FF8000;"></span>
                             <span>In Progress</span>
                         </div>
@@ -77,10 +73,6 @@
                             <span>Key Systems</span>
                         </label>
                         <label class="filter-item">
-                            <input type="checkbox" id="filter-routeCompleted" checked>
-                            <span>Complete</span>
-                        </label>
-                        <label class="filter-item">
                             <input type="checkbox" id="filter-routeInProgress" checked>
                             <span>In Progress</span>
                         </label>
@@ -104,6 +96,10 @@
                         <label class="filter-item">
                             <input type="checkbox" id="filter-regionLabels">
                             <span>Regions</span>
+                        </label>
+                        <label class="filter-item">
+                            <input type="checkbox" id="filter-populationScale">
+                            <span>Population Scale</span>
                         </label>
                     </div>
                 </div>
@@ -177,6 +173,11 @@
             <!-- Mobile Menu Toggle -->
             <button id="mobile-menu-toggle" class="mobile-menu-toggle" title="Toggle Menu">
                 ☰
+            </button>
+            
+            <!-- Mobile Route Planner Button -->
+            <button id="mobile-route-planner" class="mobile-route-button" title="Plan Route">
+                🗺️
             </button>
         </main>
 

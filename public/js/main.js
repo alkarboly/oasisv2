@@ -183,13 +183,13 @@ class OASISCommunityMap {
         // Map filter checkboxes to scene manager groups
         const filterMappings = {
             'filter-keySystem': 'keySystem',
-            'filter-routeCompleted': 'routeCompleted', 
             'filter-routeInProgress': 'routeInProgress',
             'filter-routePlanned': 'routePlanned',
             'filter-populated': 'populated',
             'filter-fleetCarriers': 'fleetCarriers',
             'filter-unclaimedStars': 'unclaimedStars',
-            'filter-regionLabels': 'regionLabels'
+            'filter-regionLabels': 'regionLabels',
+            'filter-populationScale': 'populationScale'
         };
 
         // Setup filter event listeners

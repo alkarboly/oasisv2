@@ -65,6 +65,14 @@ export class SceneManager {
         // Route tracking for show/hide functionality
         this.routeObjects = new Map(); // Map of route names to their 3D objects
         
+        // Population scaling
+        this.populationScaling = {
+            enabled: false,
+            originalSizes: new Map(), // Store original sizes for toggle
+            minSize: 0.2,  // Minimum size for smallest populations (very small)
+            maxSize: 8.0   // Maximum size for largest populations (massive)
+        };
+        
         // Animation properties
         this.animationId = null;
         this.time = 0;
@@ -616,10 +624,10 @@ export class SceneManager {
             return orderA - orderB;
         });
 
-        // Create route lines connecting all expedition systems
-        if (sortedRouteSystems.length > 1) {
-            this.createExpeditionRouteLines(sortedRouteSystems);
-        }
+        // Create route lines connecting all expedition systems - DISABLED
+        // if (sortedRouteSystems.length > 1) {
+        //     this.createExpeditionRouteLines(sortedRouteSystems);
+        // }
 
         for (const { system, routeInfo } of routeSystems) {
             const coords = this.scaleCoordinatesForScene(system.coords);
@@ -627,8 +635,8 @@ export class SceneManager {
 
             // Determine status and appearance - colors match legend exactly
             if (routeInfo['completed?_'] === 'TRUE') {
-                color = 0x00FF00; // Green (#00FF00) - matches legend
-                category = 'routeCompleted';
+                color = 0x8000FF; // Purple (#8000FF) - same as populated systems
+                category = 'populated'; // Group with populated systems
             } else if (routeInfo['claimed?_'] === 'TRUE') {
                 color = 0xFF8000; // Orange (#FF8000) - matches legend
                 category = 'routeInProgress';
@@ -703,8 +711,8 @@ export class SceneManager {
                 return idA - idB;
             });
 
-            // Create route line
-            this.createRouteLines(routeSystems, routeName);
+            // Create route line - DISABLED
+            // this.createRouteLines(routeSystems, routeName);
 
             // Create system markers
             routeSystems.forEach(({ system, routeInfo }) => {
@@ -714,7 +722,7 @@ export class SceneManager {
                 // Color based on status - match legend exactly
                 switch (routeInfo.status?.toUpperCase()) {
                     case 'DONE':
-                        color = 0x00FF00; // Green (#00FF00) - matches legend
+                        color = 0x8000FF; // Purple (#8000FF) - same as populated systems
                         opacity = 1.0;
                         break;
                     case 'IN PROGRESS':
@@ -855,29 +863,106 @@ export class SceneManager {
      * Process populated systems - now purple
      */
     async processPopulatedSystems(populatedSystems) {
+        // Calculate population range for logarithmic scaling
+        let minPop = Infinity;
+        let maxPop = 0;
+        
+        for (const system of populatedSystems) {
+            const pop = system.information.population || 1;
+            minPop = Math.min(minPop, pop);
+            maxPop = Math.max(maxPop, pop);
+        }
+        
+        const minLogPop = Math.log10(minPop);
+        const maxLogPop = Math.log10(maxPop);
+        
+        console.log(`📊 Population range: ${minPop.toLocaleString()} - ${maxPop.toLocaleString()}`);
+        console.log(`📊 Log scale range: ${minLogPop.toFixed(2)} - ${maxLogPop.toFixed(2)}`);
+
         for (const system of populatedSystems) {
             const coords = this.scaleCoordinatesForScene(system.coords);
-            const size = 0.5 + Math.min(Math.log10(system.information.population) / 10, 1.5);
+            const population = system.information.population || 1;
+            
+            // Default size (when population scaling is off)
+            const defaultSize = 0.8;
+            
+            // Calculate logarithmic size for population scaling with enhanced curve
+            const logPop = Math.log10(population);
+            let normalizedLogPop = (logPop - minLogPop) / (maxLogPop - minLogPop);
+            
+            // Apply power curve to make differences more dramatic
+            // Use power of 1.5 to emphasize larger populations even more
+            normalizedLogPop = Math.pow(normalizedLogPop, 1.5);
+            
+            const scaledSize = this.populationScaling.minSize + 
+                (normalizedLogPop * (this.populationScaling.maxSize - this.populationScaling.minSize));
 
-            const geometry = new THREE.SphereGeometry(size, 10, 10);
+            // Use default size initially, scaled size when enabled
+            const currentSize = this.populationScaling.enabled ? scaledSize : defaultSize;
+            
+            // Determine sphere quality based on size (higher quality for larger populations)
+            let sphereSegments = 8; // Default low quality
+            let glowIntensity = 0.3;
+            let sphereOpacity = 0.8;
+            
+            if (this.populationScaling.enabled) {
+                // Scale quality and effects based on population size
+                if (scaledSize > 4.0) {
+                    sphereSegments = 20; // High quality for mega-cities
+                    glowIntensity = 0.6;
+                    sphereOpacity = 0.95;
+                } else if (scaledSize > 2.0) {
+                    sphereSegments = 16; // Medium-high quality for large cities
+                    glowIntensity = 0.45;
+                    sphereOpacity = 0.9;
+                } else if (scaledSize > 1.0) {
+                    sphereSegments = 12; // Medium quality for medium cities
+                    glowIntensity = 0.35;
+                    sphereOpacity = 0.85;
+                } else {
+                    sphereSegments = 8; // Low quality for small settlements
+                    glowIntensity = 0.2;
+                    sphereOpacity = 0.75;
+                }
+            }
+
+            const geometry = new THREE.SphereGeometry(currentSize, sphereSegments, sphereSegments);
             const material = new THREE.MeshBasicMaterial({
                 color: 0x8000FF, // Purple (#8000FF) - matches legend
                 transparent: true,
-                opacity: 0.8
+                opacity: sphereOpacity
             });
 
             const sphere = new THREE.Mesh(geometry, material);
             sphere.position.set(coords.x, coords.y, coords.z);
 
-            // Add glow effect
-            const glowGeometry = new THREE.SphereGeometry(size + 1, 10, 10);
+            // Add glow effect with variable intensity
+            const glowSize = this.populationScaling.enabled ? 
+                currentSize + (0.3 + (scaledSize / this.populationScaling.maxSize) * 1.2) : // Dynamic glow based on size
+                currentSize + 0.5; // Default glow
+                
+            const glowGeometry = new THREE.SphereGeometry(glowSize, Math.max(8, sphereSegments - 4), Math.max(8, sphereSegments - 4));
             const glowMaterial = new THREE.MeshBasicMaterial({
                 color: 0x8000FF,
                 transparent: true,
-                opacity: 0.3
+                opacity: glowIntensity
             });
             const glow = new THREE.Mesh(glowGeometry, glowMaterial);
             glow.position.copy(sphere.position);
+
+            // Store size information for population scaling toggle
+            this.populationScaling.originalSizes.set(sphere.id, {
+                defaultSize: defaultSize,
+                scaledSize: scaledSize,
+                population: population,
+                sphere: sphere,
+                glow: glow,
+                defaultGlowSize: defaultSize + 0.5,
+                scaledGlowSize: glowSize,
+                sphereSegments: sphereSegments,
+                glowIntensity: glowIntensity,
+                sphereOpacity: sphereOpacity
+            });
 
             // Store system data
             this.systemData.set(sphere.id, {
@@ -1164,6 +1249,69 @@ export class SceneManager {
             this.labelVisibility.fleetCarriers = enabled;
         } else if (filterType === 'regionLabels') {
             this.labelVisibility.regionLabels = enabled;
+        } else if (filterType === 'populationScale') {
+            this.togglePopulationScaling(enabled);
+        }
+    }
+
+    /**
+     * Toggle population-based scaling for populated systems
+     */
+    togglePopulationScaling(enabled) {
+        this.populationScaling.enabled = enabled;
+        
+        console.log(`📊 Population scaling ${enabled ? 'enabled' : 'disabled'}`);
+        
+        // Update all populated system sizes
+        this.populationScaling.originalSizes.forEach((sizeInfo, sphereId) => {
+            const { 
+                defaultSize, scaledSize, population, sphere, glow, 
+                defaultGlowSize, scaledGlowSize, sphereSegments, 
+                glowIntensity, sphereOpacity 
+            } = sizeInfo;
+            
+            // Choose size and effects based on scaling mode
+            const newSize = enabled ? scaledSize : defaultSize;
+            const newGlowSize = enabled ? scaledGlowSize : defaultGlowSize;
+            const newSegments = enabled ? sphereSegments : 8;
+            const newGlowIntensity = enabled ? glowIntensity : 0.3;
+            const newSphereOpacity = enabled ? sphereOpacity : 0.8;
+            
+            // Update sphere geometry with appropriate quality
+            sphere.geometry.dispose(); // Clean up old geometry
+            sphere.geometry = new THREE.SphereGeometry(newSize, newSegments, newSegments);
+            sphere.material.opacity = newSphereOpacity;
+            
+            // Update glow geometry with enhanced effects
+            glow.geometry.dispose(); // Clean up old geometry  
+            glow.geometry = new THREE.SphereGeometry(newGlowSize, Math.max(8, newSegments - 4), Math.max(8, newSegments - 4));
+            glow.material.opacity = newGlowIntensity;
+            
+            if (enabled) {
+                const systemName = this.systemData.get(sphereId)?.name || 'Unknown';
+                console.log(`📊 ${systemName}: ${population.toLocaleString()} pop → size ${newSize.toFixed(2)} (${newSegments} segments, ${(newGlowIntensity * 100).toFixed(0)}% glow)`);
+            }
+        });
+        
+        if (enabled) {
+            console.log(`📊 Population scaling ACTIVE: dramatic size range from ${this.populationScaling.minSize} to ${this.populationScaling.maxSize} (40x difference!)`);
+            console.log(`📊 Visual enhancements: Variable sphere quality (8-20 segments), dynamic glow intensity (20%-60%), enhanced opacity`);
+            
+            // Show some examples of the scaling
+            const examples = Array.from(this.populationScaling.originalSizes.values())
+                .sort((a, b) => a.population - b.population);
+            
+            if (examples.length > 0) {
+                console.log(`📊 SMALLEST: ${examples[0].population.toLocaleString()} pop → size ${examples[0].scaledSize.toFixed(2)}`);
+                if (examples.length > 1) {
+                    const largest = examples[examples.length - 1];
+                    console.log(`📊 LARGEST: ${largest.population.toLocaleString()} pop → size ${largest.scaledSize.toFixed(2)}`);
+                    const ratio = largest.scaledSize / examples[0].scaledSize;
+                    console.log(`📊 SIZE RATIO: Largest is ${ratio.toFixed(1)}x bigger than smallest!`);
+                }
+            }
+        } else {
+            console.log(`📊 Population scaling DISABLED: uniform size ${this.populationScaling.originalSizes.values().next().value?.defaultSize || 0.8}`);
         }
     }
 
