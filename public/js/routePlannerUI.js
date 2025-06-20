@@ -16,16 +16,16 @@ export class RoutePlannerUI {
     }
 
     createUI() {
-        console.log('🎨 Creating route planner UI...');
+        console.log('🎨 Creating draggable route planner UI...');
         
-        // Create main route planner panel
+        // Create draggable route planner panel
         this.panel = document.createElement('div');
+        this.panel.className = 'route-planner draggable';
         this.panel.id = 'route-planner';
-        this.panel.className = 'route-planner';
         this.panel.style.display = 'none';
         
         this.panel.innerHTML = `
-            <div class="route-planner-header">
+            <div class="route-planner-header draggable-handle">
                 <h3>🗺️ Route Planner</h3>
                 <button class="route-planner-close" id="route-planner-close">×</button>
             </div>
@@ -110,12 +110,15 @@ export class RoutePlannerUI {
         
         document.body.appendChild(this.panel);
         
+        // Make the panel draggable
+        this.makeDraggable();
+        
         // Add route planner toggle button to controls panel
         this.createToggleButton();
     }
 
     createToggleButton() {
-        console.log('🔘 Creating toggle button...');
+        console.log('🔘 Creating route planner toggle button...');
         const controlsPanel = document.querySelector('.controls-panel');
         if (!controlsPanel) {
             console.error('❌ Controls panel not found');
@@ -135,77 +138,99 @@ export class RoutePlannerUI {
         const statsSection = controlsPanel.querySelector('.statistics');
         if (statsSection) {
             statsSection.insertAdjacentElement('afterend', routeSection);
-            console.log('✅ Toggle button added after statistics section');
+            console.log('✅ Route planner button added after statistics section');
         } else {
             controlsPanel.appendChild(routeSection);
-            console.log('✅ Toggle button added to end of controls panel');
+            console.log('✅ Route planner button added to end of controls panel');
         }
+        
+        // Verify the button was created
+        setTimeout(() => {
+            const button = document.getElementById('toggle-route-planner');
+            if (button) {
+                console.log('✅ Route planner button confirmed in DOM:', button);
+            } else {
+                console.error('❌ Route planner button NOT found in DOM');
+            }
+        }, 10);
     }
 
     setupEventListeners() {
         // Toggle route planner - use event delegation since button is created dynamically
         document.addEventListener('click', (e) => {
-            if (e.target && (e.target.id === 'toggle-route-planner' || e.target.id === 'mobile-route-planner')) {
-                console.log('🗺️ Route planner button clicked');
-                this.toggle();
+            // Check if clicked element or its parent is the route planner button
+            let target = e.target;
+            while (target && target !== document) {
+                if (target.id === 'toggle-route-planner' || target.id === 'mobile-route-planner') {
+                    console.log('🗺️ Route planner button clicked');
+                    this.toggle();
+                    return;
+                }
+                target = target.parentElement;
             }
         });
         
-        // Close route planner
-        document.getElementById('route-planner-close')?.addEventListener('click', () => {
-            this.hide();
-        });
-        
-        // System input with autocomplete
-        this.setupSystemAutocomplete('start-system', 'start-suggestions');
-        this.setupSystemAutocomplete('end-system', 'end-suggestions');
-        
-        // Jump range slider
-        const jumpRangeSlider = document.getElementById('jump-range');
-        const jumpRangeValue = document.getElementById('jump-range-value');
-        
-        jumpRangeSlider?.addEventListener('input', (e) => {
-            const value = e.target.value;
-            jumpRangeValue.textContent = value;
-            this.routePlanner.updateJumpRange(parseInt(value));
-        });
-        
-        // Route calculation
-        document.getElementById('calculate-route')?.addEventListener('click', () => {
-            this.calculateRoute();
-        });
-        
-        // Clear route
-        document.getElementById('clear-route')?.addEventListener('click', () => {
-            this.clearRoute();
-        });
-        
-        // Export buttons
-        document.getElementById('export-json')?.addEventListener('click', () => {
-            this.exportRoute('json');
-        });
-        
-        document.getElementById('export-csv')?.addEventListener('click', () => {
-            this.exportRoute('csv');
-        });
-        
-
-        
-        // Close on outside click
+        // Close route planner - use event delegation since it's created dynamically
         document.addEventListener('click', (e) => {
-            if (this.isVisible && !this.panel.contains(e.target) && 
-                !document.getElementById('toggle-route-planner')?.contains(e.target)) {
+            if (e.target && e.target.id === 'route-planner-close') {
                 this.hide();
             }
         });
         
-        // Close suggestions on outside click
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.system-input-container')) {
-                this.hideSuggestions('start-suggestions');
-                this.hideSuggestions('end-suggestions');
-            }
-        });
+        // Use setTimeout to ensure DOM elements are created after the panel is added
+        setTimeout(() => {
+            // System input with autocomplete
+            this.setupSystemAutocomplete('start-system', 'start-suggestions');
+            this.setupSystemAutocomplete('end-system', 'end-suggestions');
+            
+            // Jump range slider
+            const jumpRangeSlider = document.getElementById('jump-range');
+            const jumpRangeValue = document.getElementById('jump-range-value');
+            
+            jumpRangeSlider?.addEventListener('input', (e) => {
+                const value = e.target.value;
+                jumpRangeValue.textContent = value;
+                this.routePlanner.updateJumpRange(parseInt(value));
+            });
+            
+            // Route calculation
+            document.getElementById('calculate-route')?.addEventListener('click', () => {
+                this.calculateRoute();
+            });
+            
+            // Clear route
+            document.getElementById('clear-route')?.addEventListener('click', () => {
+                this.clearRoute();
+            });
+            
+            // Export buttons
+            document.getElementById('export-json')?.addEventListener('click', () => {
+                this.exportRoute('json');
+            });
+            
+            document.getElementById('export-csv')?.addEventListener('click', () => {
+                this.exportRoute('csv');
+            });
+            
+            // Close on outside click (but not when dragging)
+            document.addEventListener('click', (e) => {
+                if (this.isVisible && !this.panel.contains(e.target) && 
+                    !document.getElementById('toggle-route-planner')?.contains(e.target) &&
+                    !document.getElementById('mobile-route-planner')?.contains(e.target)) {
+                    this.hide();
+                }
+            });
+            
+            // Close suggestions on outside click
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.system-input-container')) {
+                    this.hideSuggestions('start-suggestions');
+                    this.hideSuggestions('end-suggestions');
+                }
+            });
+            
+            console.log('✅ Event listeners setup for draggable route planner');
+        }, 100);
     }
 
     setupSystemAutocomplete(inputId, suggestionsId) {
@@ -511,18 +536,90 @@ export class RoutePlannerUI {
         this.showSuccess(`Route exported as ${format.toUpperCase()}`);
     }
 
+    makeDraggable() {
+        const handle = this.panel.querySelector('.draggable-handle');
+        let isDragging = false;
+        let currentX = 0;
+        let currentY = 0;
+        let initialX = 0;
+        let initialY = 0;
+
+        // Store current position
+        this.dragOffset = { x: 0, y: 0 };
+
+        handle.addEventListener('mousedown', (e) => {
+            // Don't drag if clicking on the close button
+            if (e.target.classList.contains('route-planner-close')) return;
+            
+            isDragging = true;
+            handle.style.cursor = 'grabbing';
+            
+            // Get current mouse position relative to current panel position
+            initialX = e.clientX - this.dragOffset.x;
+            initialY = e.clientY - this.dragOffset.y;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                e.preventDefault();
+                
+                // Calculate new position
+                currentX = e.clientX - initialX;
+                currentY = e.clientY - initialY;
+
+                // Update stored offset
+                this.dragOffset.x = currentX;
+                this.dragOffset.y = currentY;
+
+                // Apply the transform
+                this.setTranslate(currentX, currentY);
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                handle.style.cursor = 'grab';
+            }
+        });
+
+        // Make handle look draggable
+        handle.style.cursor = 'grab';
+        handle.style.userSelect = 'none';
+    }
+
+    centerPanel() {
+        // Reset transform to get natural dimensions
+        this.panel.style.transform = '';
+        
+        const rect = this.panel.getBoundingClientRect();
+        const x = (window.innerWidth - rect.width) / 2;
+        const y = (window.innerHeight - rect.height) / 2;
+        
+        // Update drag offset to match centered position
+        this.dragOffset = { x, y };
+        
+        this.setTranslate(x, y);
+    }
+
+    setTranslate(xPos, yPos) {
+        this.panel.style.transform = `translate(${xPos}px, ${yPos}px)`;
+    }
+
     show() {
-        console.log('👁️ Showing route planner panel');
+        console.log('👁️ Showing draggable route planner');
         this.panel.style.display = 'block';
         this.isVisible = true;
         
-        // Focus on start system input
+        // Center the panel when showing
         setTimeout(() => {
+            this.centerPanel();
             document.getElementById('start-system')?.focus();
-        }, 100);
+        }, 10);
     }
 
     hide() {
+        console.log('🙈 Hiding route planner');
         this.panel.style.display = 'none';
         this.isVisible = false;
         
@@ -532,7 +629,7 @@ export class RoutePlannerUI {
     }
 
     toggle() {
-        console.log('🔄 Route planner toggle called, current visibility:', this.isVisible);
+        console.log('🔄 Toggling route planner, current visibility:', this.isVisible);
         if (this.isVisible) {
             this.hide();
         } else {
@@ -554,8 +651,12 @@ export class RoutePlannerUI {
         notification.className = `route-notification route-notification-${type}`;
         notification.textContent = message;
         
-        // Add to panel
-        this.panel.appendChild(notification);
+        // Add to the draggable panel
+        if (this.panel) {
+            this.panel.appendChild(notification);
+        } else {
+            document.body.appendChild(notification);
+        }
         
         // Animate in
         setTimeout(() => {
@@ -598,40 +699,6 @@ export class RoutePlannerUI {
         }
         
         await this.routePlanner.loadSystemData();
-        
-        // Final check - verify button exists and is clickable
-        const finalButton = document.getElementById('toggle-route-planner');
-        if (finalButton) {
-            console.log('✅ Toggle button confirmed present in DOM');
-            console.log('Button element:', finalButton);
-            console.log('Button classes:', finalButton.className);
-            console.log('Button computed style cursor:', window.getComputedStyle(finalButton).cursor);
-            
-            // Force cursor style as a test
-            finalButton.style.cursor = 'pointer';
-            finalButton.style.backgroundColor = 'red'; // Temporary visual test
-            finalButton.style.zIndex = '10000'; // Ensure it's on top
-            finalButton.style.pointerEvents = 'auto'; // Ensure it can receive clicks
-            finalButton.style.position = 'relative'; // Ensure proper positioning
-            
-            // Add a direct click test
-            finalButton.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('🎯 DIRECT CLICK DETECTED ON BUTTON!');
-                alert('Button clicked! Route planner should work now.');
-                this.toggle();
-            });
-            
-            // Also try mousedown event
-            finalButton.addEventListener('mousedown', (e) => {
-                console.log('🖱️ MOUSEDOWN on button detected');
-            });
-            
-            console.log('🔧 Applied test styles and direct click listener to button');
-        } else {
-            console.error('❌ Toggle button still not found after initialization');
-        }
         
         console.log('✅ Route Planner UI ready');
     }
