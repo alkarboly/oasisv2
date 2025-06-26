@@ -289,7 +289,10 @@ class OASISCommunityMap {
 
         // Update coordinates field to show system instead
         const coordsElement = document.getElementById('system-coords');
-        if (coordsElement) coordsElement.textContent = fcData.location;
+        if (coordsElement) {
+            coordsElement.textContent = fcData.location;
+            this.makeCopyable(coordsElement, fcData.location, 'System Name');
+        }
         // Update coordinates label
         const coordsLabel = coordsElement.parentElement.querySelector('.detail-label');
         if (coordsLabel) coordsLabel.textContent = 'System:';
@@ -335,7 +338,10 @@ class OASISCommunityMap {
 
         // Update coordinates (anchor system)
         const coordsElement = document.getElementById('system-coords');
-        if (coordsElement) coordsElement.textContent = regionData.systemName;
+        if (coordsElement) {
+            coordsElement.textContent = regionData.systemName;
+            this.makeCopyable(coordsElement, regionData.systemName, 'System Name');
+        }
 
         // Show blurb in primary star field
         const starElement = document.getElementById('system-star');
@@ -353,7 +359,10 @@ class OASISCommunityMap {
     showRegularSystemInfo(systemData, infoPanel) {
         // Update system name
         const nameElement = document.getElementById('system-name');
-        if (nameElement) nameElement.textContent = systemData.name;
+        if (nameElement) {
+            nameElement.textContent = systemData.name;
+            this.makeCopyable(nameElement, systemData.name, 'System Name');
+        }
 
         // Update system type
         const typeElement = document.getElementById('system-type');
@@ -575,6 +584,44 @@ class OASISCommunityMap {
         if (infoPanel) {
             infoPanel.style.display = 'none';
         }
+    }
+
+    /**
+     * Make an element clickable to copy its text to clipboard
+     */
+    makeCopyable(element, textToCopy, elementType = 'System Name') {
+        // Clean approach - just add simple click handler without replacing element
+        element.style.cursor = 'pointer';
+        element.title = `Click to copy ${elementType.toLowerCase()}`;
+        
+        // Remove existing listeners by cloning and replacing event handlers
+        element.onclick = null;
+        
+        // Add click event listener
+        element.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            
+            try {
+                await navigator.clipboard.writeText(textToCopy);
+                
+                // Simple feedback
+                const originalTitle = element.title;
+                element.title = '✓ Copied!';
+                
+                setTimeout(() => {
+                    element.title = originalTitle;
+                }, 1500);
+                
+                console.log(`📋 Copied to clipboard: ${textToCopy}`);
+                
+            } catch (err) {
+                console.error('Failed to copy to clipboard:', err);
+                element.title = 'Copy failed - try selecting text manually';
+                setTimeout(() => {
+                    element.title = originalTitle;
+                }, 3000);
+            }
+        });
     }
 
     updateLoadingStatus(message) {

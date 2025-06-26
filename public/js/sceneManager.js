@@ -140,7 +140,8 @@ export class SceneManager {
             "Orion Outer Rim": "The frontier regions of the Orion Cluster, where brave explorers push the boundaries of known space. Less populated but rich in discovery potential.",
             "Barnard's Loop": "A large arc of ionized gas surrounding much of the Orion constellation. This ancient supernova remnant creates a spectacular backdrop for deep space operations.",
             "Rosette Nebula": "A skull-shaped emission nebula known for its distinctive appearance and active stellar nursery. Popular among both researchers and tourists.",
-            "Witch Head Nebula": "A reflection nebula illuminated by the bright star Rigel. Its ethereal blue glow makes it one of the most photographed regions in the cluster."
+            "Witch Head Nebula": "A reflection nebula illuminated by the bright star Rigel. Its ethereal blue glow makes it one of the most photographed regions in the cluster.",
+            "'Goid WH": "The 75 LY bubble area around this system has been identified by the Anti Xeno Initiative to contain Thargoid NHSS (Non Human Signal Sources). You can find and hunt Thargoids here."
         };
     }
 
@@ -1112,12 +1113,19 @@ export class SceneManager {
             const coords = this.scaleCoordinatesForScene(system.coords);
             positions.push(coords.x, coords.y, coords.z);
 
-            // Color by star type with softer tones
-            const starColor = this.getStarTypeColor(system.primaryStar?.type);
-            const color = new THREE.Color(starColor);
-            // Reduce intensity for easier viewing
-            color.multiplyScalar(0.7);
-            colors.push(color.r, color.g, color.b);
+            // Check if this system belongs to Goid WH anchor - make it neon green
+            if (system.anchor_description && system.anchor_description.includes("'Goid WH")) {
+                // Neon green color for Goid WH systems
+                const color = new THREE.Color(0x00ff41); // Bright neon green
+                colors.push(color.r, color.g, color.b);
+            } else {
+                // Color by star type with softer tones for other systems
+                const starColor = this.getStarTypeColor(system.primaryStar?.type);
+                const color = new THREE.Color(starColor);
+                // Reduce intensity for easier viewing
+                color.multiplyScalar(0.7);
+                colors.push(color.r, color.g, color.b);
+            }
 
             // Smaller, more consistent sizes
             sizes.push(0.3 + Math.random() * 0.2);
@@ -1141,7 +1149,13 @@ export class SceneManager {
         const particles = new THREE.Points(geometry, material);
         this.groups.unclaimedStars.add(particles);
 
+        // Count Goid WH systems for logging
+        const goidWHCount = unclaimedSystems.filter(system => 
+            system.anchor_description && system.anchor_description.includes("'Goid WH")
+        ).length;
+        
         console.log(`✨ Created smooth particle system with ${unclaimedSystems.length} unclaimed stars`);
+        console.log(`🟢 ${goidWHCount} Goid WH systems rendered in neon green`);
     }
 
     /**
