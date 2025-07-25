@@ -1,7 +1,6 @@
 import { SceneManager } from './sceneManager.js';
 import { DataManager } from './dataManager.js';
-import { RoutePlanner } from './routePlanner.js';
-import { RoutePlannerUI } from './routePlannerUI.js';
+// Route planner removed
 
 /**
  * Main Application Class
@@ -11,8 +10,7 @@ class OASISCommunityMap {
     constructor() {
         this.dataManager = new DataManager();
         this.sceneManager = new SceneManager('scene-canvas');
-        this.routePlanner = new RoutePlanner(this.sceneManager);
-        this.routePlannerUI = null; // Initialize later after DOM is ready
+        // Route planner removed
         
         this.isInitialized = false;
         this.loadingScreen = document.getElementById('loading-screen');
@@ -43,10 +41,7 @@ class OASISCommunityMap {
             this.setupFilters();
             
 
-            // Initialize route planner UI
-            this.updateLoadingStatus('Initializing route planner...');
-            this.routePlannerUI = new RoutePlannerUI(this.routePlanner, this.sceneManager);
-            await this.routePlannerUI.initialize();
+                    // Route planner UI removed
             
             // Hide loading screen
             this.hideLoadingScreen();
@@ -180,16 +175,9 @@ class OASISCommunityMap {
     }
 
     setupFilters() {
-        // Map filter checkboxes to scene manager groups
+        // Map filter checkboxes to scene manager groups - only keep essential filters
         const filterMappings = {
-            'filter-keySystem': 'keySystem',
-            'filter-routeInProgress': 'routeInProgress',
-            'filter-routePlanned': 'routePlanned',
-            'filter-populated': 'populated',
-            'filter-fleetCarriers': 'fleetCarriers',
-            'filter-unclaimedStars': 'unclaimedStars',
-            'filter-regionLabels': 'regionLabels',
-            'filter-populationScale': 'populationScale'
+            'filter-regionLabels': 'regionLabels'
         };
 
         // Setup filter event listeners
@@ -212,9 +200,7 @@ class OASISCommunityMap {
             
             // Update UI elements
             this.updateStatElement('stat-total', stats.total);
-            this.updateStatElement('stat-fleet-carriers', stats.fleetCarriers);
             this.updateStatElement('stat-populated', stats.populated);
-            // Active expeditions is static content, already set in HTML
             
         } catch (error) {
             console.error('❌ Failed to update statistics:', error);
@@ -224,20 +210,8 @@ class OASISCommunityMap {
     calculateStatistics() {
         const groups = this.sceneManager.groups;
         
-        // Count systems in each group
-        const routeCompleted = groups.routeCompleted?.children?.length || 0;
-        const routeInProgress = groups.routeInProgress?.children?.length || 0;
-        const routePlanned = groups.routePlanned?.children?.length || 0;
-        const totalRoute = routeCompleted + routeInProgress + routePlanned;
-        
-        // Count actual fleet carriers from the fcLabels array (more accurate)
-        const fleetCarriers = this.sceneManager.fcLabels ? 
-            this.sceneManager.fcLabels.filter(label => label.type === 'fc').length : 
-            groups.fleetCarriers?.children?.length || 0;
-        
         const stats = {
             total: this.sceneManager.allSystems.size,
-            fleetCarriers: fleetCarriers,
             populated: groups.populated?.children?.length || 0
         };
         
@@ -259,10 +233,8 @@ class OASISCommunityMap {
             return;
         }
 
-        // Handle different data types (Fleet Carrier, Region, System)
-        if (systemData.type === 'fleetCarrier') {
-            this.showFleetCarrierInfo(systemData, infoPanel);
-        } else if (systemData.type === 'region') {
+        // Handle different data types (Region, System)
+        if (systemData.type === 'region') {
             this.showRegionInfo(systemData, infoPanel);
         } else {
             this.showRegularSystemInfo(systemData, infoPanel);
@@ -278,48 +250,7 @@ class OASISCommunityMap {
         console.log('🔄 Forced reflow, final display:', window.getComputedStyle(infoPanel).display);
     }
 
-    showFleetCarrierInfo(fcData, infoPanel) {
-        // Update system name
-        const nameElement = document.getElementById('system-name');
-        if (nameElement) nameElement.textContent = `${fcData.name} (${fcData.callsign})`;
 
-        // Update system type
-        const typeElement = document.getElementById('system-type');
-        if (typeElement) typeElement.textContent = 'Fleet Carrier';
-
-        // Update coordinates field to show system instead
-        const coordsElement = document.getElementById('system-coords');
-        if (coordsElement) {
-            coordsElement.textContent = fcData.location;
-            this.makeCopyable(coordsElement, fcData.location, 'System Name');
-        }
-        // Update coordinates label
-        const coordsLabel = coordsElement.parentElement.querySelector('.detail-label');
-        if (coordsLabel) coordsLabel.textContent = 'System:';
-
-        // Update primary star field to show FC Owner instead
-        const starElement = document.getElementById('system-star');
-        if (starElement) starElement.textContent = fcData.owner;
-        // Update primary star label
-        const starLabel = starElement.parentElement.querySelector('.detail-label');
-        if (starLabel) starLabel.textContent = 'FC Owner:';
-
-        // Show status in population field
-        const populationInfo = document.getElementById('population-info');
-        const populationElement = document.getElementById('system-population');
-        if (populationInfo && populationElement) {
-            populationInfo.style.display = 'block';
-            populationElement.textContent = fcData.status;
-            // Update label to show "Status" instead of "Population"
-            const populationLabel = populationInfo.querySelector('.detail-label');
-            if (populationLabel) populationLabel.textContent = 'Status:';
-        }
-
-        // Hide other fields
-        document.getElementById('economy-info').style.display = 'none';
-        document.getElementById('route-info').style.display = 'none';
-        document.getElementById('lore-section').style.display = 'none';
-    }
 
     showRegionInfo(regionData, infoPanel) {
         // Update system name
@@ -332,11 +263,11 @@ class OASISCommunityMap {
 
         // Reset labels to default
         const coordsLabel = document.querySelector('#system-coords').parentElement.querySelector('.detail-label');
-        if (coordsLabel) coordsLabel.textContent = 'Anchor System:';
+        if (coordsLabel) coordsLabel.textContent = 'System Coordinates:';
         const starLabel = document.querySelector('#system-star').parentElement.querySelector('.detail-label');
         if (starLabel) starLabel.textContent = 'Description:';
 
-        // Update coordinates (anchor system)
+        // Update coordinates
         const coordsElement = document.getElementById('system-coords');
         if (coordsElement) {
             coordsElement.textContent = regionData.systemName;
@@ -369,9 +300,6 @@ class OASISCommunityMap {
         if (typeElement) {
             const typeNames = {
                 'keySystem': 'Key System',
-                'routeCompleted': 'Complete Expedition Route',
-                'routeInProgress': 'In Progress Expedition Route', 
-                'routePlanned': 'Planned Expedition Route',
                 'populated': 'Populated System'
             };
             typeElement.textContent = typeNames[systemData.category] || systemData.category;
@@ -419,29 +347,7 @@ class OASISCommunityMap {
             economyInfo.style.display = 'none';
         }
 
-        // Show/hide route info
-        const routeInfo = document.getElementById('route-info');
-        const routeStatusElement = document.getElementById('route-status');
-        if (systemData.routeInfo) {
-            routeInfo.style.display = 'block';
-            let status = 'Planned';
-            if (systemData.routeInfo['completed?_'] === 'TRUE') {
-                status = 'Completed';
-            } else if (systemData.routeInfo['claimed?_'] === 'TRUE') {
-                status = 'In Progress';
-            }
-            
-            // Add custom route info if available
-            if (systemData.routeInfo.customRoute) {
-                const routeName = systemData.routeInfo.routeName || 'Unknown Route';
-                const routeId = systemData.routeInfo.routeId || 'N/A';
-                status += ` (${routeName} #${routeId})`;
-            }
-            
-            routeStatusElement.textContent = status;
-        } else {
-            routeInfo.style.display = 'none';
-        }
+
 
         // Hide lore section for regular systems
         document.getElementById('lore-section').style.display = 'none';

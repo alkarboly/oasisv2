@@ -51,30 +51,40 @@ const PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
 let sheetsAuth = null;
 let cachedVisualizationData = null;
-let cachedAnchorSystems = null;
+
 
 // Load and cache visualization data at startup
 async function loadVisualizationData() {
   try {
     console.log('📊 Loading combined visualization data...');
-    const vizData = await fs.readFile('data/combined_visualization_systems.json', 'utf8');
+    const vizData = await fs.readFile('data/spansh_colonized_systems.json', 'utf8');
     const parsedData = JSON.parse(vizData);
     
     // Convert systems array to lookup object for efficient access
     const systemsLookup = {};
-    if (parsedData.systems && Array.isArray(parsedData.systems)) {
-      parsedData.systems.forEach(system => {
+    let systemsArray = [];
+    
+    // Handle both array format and object with systems property
+    if (Array.isArray(parsedData)) {
+      systemsArray = parsedData;
+    } else if (parsedData.systems && Array.isArray(parsedData.systems)) {
+      systemsArray = parsedData.systems;
+    }
+    
+    if (systemsArray.length > 0) {
+      systemsArray.forEach(system => {
         systemsLookup[system.name] = system;
       });
       
-      console.log(`🔍 Processed ${parsedData.systems.length} systems into lookup table`);
-      console.log('🔍 Sample system:', parsedData.systems[0]?.name, parsedData.systems[0]?.coords);
+      console.log(`🔍 Processed ${systemsArray.length} systems into lookup table`);
+      console.log('🔍 Sample system:', systemsArray[0]?.name, systemsArray[0]);
     }
     
-    // Cache the processed data
+    // Cache the processed data in consistent format
     cachedVisualizationData = {
-      ...parsedData,
-      systemsLookup: systemsLookup
+      systems: systemsArray,
+      systemsLookup: systemsLookup,
+      last_updated: parsedData.last_updated || new Date().toISOString()
     };
     
     return cachedVisualizationData;
@@ -108,83 +118,7 @@ async function initializeGoogleAuth() {
   }
 }
 
-// Load and cache anchor systems from CSV
-async function loadAnchorSystems() {
-  if (cachedAnchorSystems) {
-    return cachedAnchorSystems;
-  }
-  
-  try {
-    const csvData = await fs.readFile('data/vis_anchor_systems.csv', 'utf8');
-    const lines = csvData.split('\n').slice(1); // Skip header
-    
-    cachedAnchorSystems = lines.filter(line => line.trim()).map(line => {
-      const [name, radius_ly, description] = line.split(',').map(s => s.trim());
-      return {
-        name,
-        radius_ly: parseInt(radius_ly) || 100,
-        description: description || ''
-      };
-    });
-    
-    return cachedAnchorSystems;
-  } catch (error) {
-    console.error('Error loading anchor systems:', error);
-    return [];
-  }
-}
 
-// Load custom route files
-async function loadCustomRoutes() {
-  try {
-    const routesPath = 'data/routes';
-    
-    // Check if routes directory exists
-    if (!fsSync.existsSync(routesPath)) {
-      console.log('📍 No custom routes directory found');
-      return {};
-    }
-    
-    const files = await fs.readdir(routesPath);
-    const csvFiles = files.filter(file => file.endsWith('.csv'));
-    
-    if (csvFiles.length === 0) {
-      console.log('📍 No CSV route files found');
-      return {};
-    }
-    
-    const customRoutes = {};
-    
-    for (const file of csvFiles) {
-      try {
-        const filePath = path.join(routesPath, file);
-        const csvData = await fs.readFile(filePath, 'utf8');
-        const lines = csvData.split('\n').slice(1); // Skip header
-        
-        const routeName = path.basename(file, '.csv');
-        customRoutes[routeName] = lines
-          .filter(line => line.trim())
-          .map(line => {
-            const [id, systemName, status] = line.split(',').map(s => s.trim());
-            return {
-              id: id || '',
-              system_name: systemName || '',
-              status: status || ''
-            };
-          });
-        
-        console.log(`📍 Loaded custom route "${routeName}" with ${customRoutes[routeName].length} systems`);
-      } catch (fileError) {
-        console.error(`❌ Error loading route file ${file}:`, fileError);
-      }
-    }
-    
-    return customRoutes;
-  } catch (error) {
-    console.error('❌ Error loading custom routes:', error);
-    return {};
-  }
-}
 
 // API Routes
 app.get('/api/health', (req, res) => {
@@ -195,15 +129,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.get('/api/anchor-systems', async (req, res) => {
-  try {
-    const anchorSystems = await loadAnchorSystems();
-    res.json(anchorSystems);
-  } catch (error) {
-    console.error('Error fetching anchor systems:', error);
-    res.status(500).json({ error: 'Failed to load anchor systems' });
-  }
-});
 
 app.get('/api/sheets-data', async (req, res) => {
   if (!sheetsAuth) {
@@ -215,8 +140,7 @@ app.get('/api/sheets-data', async (req, res) => {
     
     // Define sheet ranges for different data types
     const ranges = [
-      'route!A:G',      // Route data
-      'fc-manifest!A:G', // Fleet carrier data
+      
       'setup!A:B',      // Setup configuration
       'hauler-manifest!A:C' // Hauler data
     ];
@@ -226,17 +150,9 @@ app.get('/api/sheets-data', async (req, res) => {
       ranges: ranges
     });
 
-    const [routeData, fcData, setupData, haulerData] = batchResponse.data.valueRanges;
+    const [setupData, haulerData] = batchResponse.data.valueRanges;
 
-    // Process route data
-    const processedRoute = processSheetData(routeData.values, [
-      '#', 'system_name', 'claimed?_', 'completed?_', 'architect?_', 'assigned_fc'
-    ]);
-
-    // Process fleet carrier data
-    const processedFC = processSheetData(fcData.values, [
-      'callsign', 'name', 'owner_', 'status', 'timestamp', 'location'
-    ]);
+    // Fleet carrier processing removed
 
     // Process setup data
     const processedSetup = processSheetData(setupData.values, [
@@ -249,8 +165,7 @@ app.get('/api/sheets-data', async (req, res) => {
     ]);
 
     res.json({
-      route: processedRoute,
-      fleetCarriers: processedFC,
+      
       setup: processedSetup,
       haulers: processedHauler,
       lastUpdated: new Date().toISOString()
@@ -316,17 +231,6 @@ app.get('/api/visualization-data', async (req, res) => {
   }
 });
 
-// API endpoint for custom routes
-app.get('/api/custom-routes', async (req, res) => {
-  try {
-    const customRoutes = await loadCustomRoutes();
-    res.json(customRoutes);
-  } catch (error) {
-    console.error('Error fetching custom routes:', error);
-    res.status(500).json({ error: 'Failed to load custom routes' });
-  }
-});
-
 // Serve main application
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -337,14 +241,14 @@ async function startServer() {
   // Initialize authentication and load data at startup
   await initializeGoogleAuth();
   await loadVisualizationData();
-  await loadAnchorSystems();
+
   
   app.listen(PORT, () => {
     console.log(`🚀 OASIS Community Map running on port ${PORT}`);
     console.log(`📊 Google Sheets: ${sheetsAuth ? 'Connected' : 'Not configured'}`);
     console.log(`🌐 Access at: http://localhost:${PORT}`);
     console.log(`✅ Visualization data cached: ${cachedVisualizationData ? 'Yes' : 'No'}`);
-    console.log(`✅ Anchor systems cached: ${cachedAnchorSystems ? 'Yes' : 'No'}`);
+
   });
 }
 

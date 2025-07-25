@@ -173,7 +173,7 @@ export class UIController {
         const elements = {
             'stat-total': stats.total,
             'stat-route-progress': `${stats.routeProgress}%`,
-            'stat-fleet-carriers': stats.fleetCarriers,
+
             'stat-populated': stats.populated
         };
 

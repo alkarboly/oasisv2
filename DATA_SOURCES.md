@@ -7,7 +7,7 @@ The OASIS Community Map uses multiple data sources to create a real-time 3D visu
 
 ## 🗃️ **Local Data Files**
 
-### 1. `combined_visualization_systems.json` (7.1MB)
+### 1. `spansh_colonized_systems.json` (7.1MB)
 **Primary coordinate database for all Elite Dangerous systems**
 
 **Structure:**
@@ -80,27 +80,7 @@ SystemName,special
 
 ### API Endpoint: `/api/sheets-data`
 
-### 1. **Route Data** (`route` sheet)
-**System colonization progress tracking**
-
-**Structure:**
-```json
-{
-  "#": 1,
-  "system_name": "Trapezium Sector CM-S b5-0",
-  "claimed?_": "TRUE",        // "TRUE" or "FALSE"
-  "completed?_": "TRUE",      // "TRUE" or "FALSE"  
-  "architect?_": "Mutahadir", // Commander name
-  "assigned_fc": ""           // Fleet carrier callsign
-}
-```
-
-**Visual Mapping:**
-- `completed?_ = TRUE`: 🟢 Green sphere
-- `claimed?_ = TRUE, completed?_ = FALSE`: 🟠 Orange pulsing sphere
-- `claimed?_ = FALSE`: 🔴 Red sphere
-
-### 2. **Fleet Carrier Data** (`fc-manifest` sheet)
+### 1. **Fleet Carrier Data** (`fc-manifest` sheet)
 **Active fleet carrier tracking**
 
 **Structure:**
@@ -119,7 +99,7 @@ SystemName,special
 - 🔵 Blue rotating octahedron positioned at `location` system
 - Size: 1.5 units (larger than regular systems)
 
-### 3. **Setup Configuration** (`setup` sheet)
+### 2. **Setup Configuration** (`setup` sheet)
 **Expedition configuration parameters**
 
 **Structure:**
@@ -132,7 +112,7 @@ SystemName,special
 
 **Usage:** Application configuration and expedition settings
 
-### 4. **Hauler Manifest** (`hauler-manifest` sheet)
+### 3. **Hauler Manifest** (`hauler-manifest` sheet)
 **Commander activity tracking**
 
 **Structure:**
@@ -146,7 +126,7 @@ SystemName,special
 
 **Usage:** Statistics and activity monitoring
 
-### 5. **Admin Manifest** (`admin-manifest` sheet)
+### 4. **Admin Manifest** (`admin-manifest` sheet)
 **Administrative data**
 
 **Structure:**
@@ -165,14 +145,14 @@ SystemName,special
 ### 1. **Application Startup**
 ```
 1. Load vis_anchor_systems.csv → Region markers
-2. Load combined_visualization_systems.json → Coordinate database  
+2. Load spansh_colonized_systems.json → Coordinate database  
 3. Call Google Sheets API → Live status data
 4. Cross-reference system names for positioning
 ```
 
 ### 2. **Coordinate Resolution**
 ```
-System Name → combined_visualization_systems.json → Real ED Coordinates → Scale for Three.js
+System Name → spansh_colonized_systems.json → Real ED Coordinates → Scale for Three.js
 ```
 
 ### 3. **Visual Processing**
@@ -200,7 +180,6 @@ Google Sheets Data + Coordinates → Colored 3D Objects → Scene Rendering
 **DO NOT USE DIRECTLY IN APPLICATION**
 
 These files show the structure of Google Sheets API responses:
-- `route.json`: Example route data structure
 - `fc-manifest.json`: Example fleet carrier data  
 - `setup.json`: Example configuration data
 - `hauler-manifest.json`: Example hauler data
@@ -212,7 +191,7 @@ These files show the structure of Google Sheets API responses:
 
 ## ⚠️ **Important Notes**
 
-1. **Primary Coordinate Source**: Always use `combined_visualization_systems.json`
+1. **Primary Coordinate Source**: Always use `spansh_colonized_systems.json`
 2. **No External APIs**: Do not call EDDB/EDSM APIs - all data is local
 3. **Live Data**: Only Google Sheets provides real-time updates
 4. **System Name Matching**: Exact string matching required between sources

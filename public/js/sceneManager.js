@@ -10,8 +10,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
  * - Key systems (special golden system from CSV)
  * - Route systems (yellow planned, orange in-progress, green completed)
  * - Populated systems (purple with size based on population)
- * - Fleet carriers (cyan rotating octahedrons with dynamic HTML labels)
- * - Region labels from anchor systems CSV
+
+ * - Special system visualization from CSV data
  * - Unclaimed stars (smooth particle system)
  * - Sci-fi neon lighting and effects
  */
@@ -25,28 +25,16 @@ export class SceneManager {
         this.raycaster = null;
         this.mouse = null;
         
-        // Memorial system coordinates (scene center)
-        this.memorialSystem = "2MASS J05405172-0226489";
-        this.memorialCoords = null;
+        // Scene center coordinates (calculated from all systems)
+        this.sceneCenter = null;
         
         // Object groups for different system types
         this.groups = {
             // Special systems
             keySystem: new THREE.Group(),         // Gold - Key system only
             
-            // Route systems
-            routePlanned: new THREE.Group(),      // Yellow - Planned expedition route
-            routeInProgress: new THREE.Group(),   // Orange - In-progress expedition route
-            routeCompleted: new THREE.Group(),    // Green - Completed expedition route
-            
             // Population systems
             populated: new THREE.Group(),         // Purple - Has population/economy
-            
-            // Fleet carriers
-            fleetCarriers: new THREE.Group(),     // Cyan - Mobile bases
-            
-            // Background particle systems
-            unclaimedStars: new THREE.Group()     // White particles - All other systems
         };
         
         // Interactive objects and data storage
@@ -56,26 +44,31 @@ export class SceneManager {
         this.systemNameMap = new Map(); // Case-insensitive lookup: normalized -> original
         
         // Label management
-        this.fcLabels = []; // Fleet carrier and region HTML labels
+        this.systemLabels = []; // System HTML labels
         this.labelVisibility = {
-            fleetCarriers: true,
+
             regionLabels: false  // Off by default
         };
         
-        // Route tracking for show/hide functionality
-        this.routeObjects = new Map(); // Map of route names to their 3D objects
+
         
-        // Population scaling
-        this.populationScaling = {
-            enabled: false,
-            originalSizes: new Map(), // Store original sizes for toggle
-            minSize: 0.2,  // Minimum size for smallest populations (very small)
-            maxSize: 8.0   // Maximum size for largest populations (massive)
-        };
+        // Population scaling not applicable to particle systems
         
         // Animation properties
         this.animationId = null;
         this.time = 0;
+        
+        // Distance-based opacity fading from center for smooth transitions
+        this.fadeDistances = {
+            keySystem: { start: 100, end: 200 },    // Start fading at 100, fully transparent at 200
+            populated: { start: 80, end: 150 },     // Start fading at 80, fully transparent at 150
+            regionLabels: { start: 150, end: 300 }  // Start fading at 150, fully transparent at 300
+        };
+        this.fadingStats = {
+            totalObjects: 0,
+            visibleObjects: 0,
+            lastLogTime: 0
+        };
         
         // Auto-rotation disabled
         
@@ -98,9 +91,16 @@ export class SceneManager {
         Object.values(this.groups).forEach(group => {
             this.scene.add(group);
         });
+
+        // Add coordinate grid helpers for debugging
+        this.addCoordinateHelpers();
         
-        // Set initial visibility for filters that are off by default
-        this.groups.unclaimedStars.visible = false;  // Unclaimed stars off by default
+        // Set initial visibility - all systems visible by default with distance culling
+        Object.values(this.groups).forEach(group => {
+            group.visible = true;
+        });
+        
+        console.log('🎯 All system groups visible by default with distance-based culling enabled');
         
         this.startAnimation();
         console.log('🎬 OASIS Sci-Fi Scene initialized');
@@ -153,9 +153,9 @@ export class SceneManager {
 
     setupCamera() {
         const aspect = this.canvas.clientWidth / this.canvas.clientHeight;
-        this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
-        this.camera.position.set(0, 60, 200); // Zoom out even more for better cluster overview
-        this.camera.lookAt(0, 0, 0);
+        this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 10000);
+        this.camera.position.set(50, 30, 80); // Closer view centered on anchor system
+        this.camera.lookAt(0, 0, 0); // Look at center (anchor system will be at 0,0,0 after scaling)
     }
 
     setupRenderer() {
@@ -178,8 +178,8 @@ export class SceneManager {
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
         this.controls.screenSpacePanning = false;
-        this.controls.minDistance = 5;
-        this.controls.maxDistance = 300;
+        this.controls.minDistance = 10;
+        this.controls.maxDistance = 2000;  // Adjusted for 0.1 scale factor
         this.controls.maxPolarAngle = Math.PI;
         
         // Auto-rotation disabled
@@ -203,10 +203,10 @@ export class SceneManager {
         const ambientLight = new THREE.AmbientLight(0x0a0a2a, 0.3);
         this.scene.add(ambientLight);
 
-        // Memorial system glow (will be positioned when memorial is found)
-        const memorialLight = new THREE.PointLight(0xFFD700, 3, 100);
-        memorialLight.position.set(0, 0, 0);
-        this.scene.add(memorialLight);
+        // Scene center lighting
+        const centerLight = new THREE.PointLight(0xFFD700, 3, 100);
+        centerLight.position.set(0, 0, 0);
+        this.scene.add(centerLight);
 
         // Directional light from "sun" - cold blue
         const sunLight = new THREE.DirectionalLight(0x4080ff, 0.5);
@@ -285,185 +285,109 @@ export class SceneManager {
 
             // Store all systems for lookup with case-insensitive mapping
             vizData.systems.forEach(system => {
-                this.allSystems.set(system.name, system);
-                this.systemNameMap.set(this.normalizeSystemName(system.name), system.name);
+                const systemName = system.name || system.Name; // Handle both cases
+                if (systemName) {
+                    this.allSystems.set(systemName, system);
+                    this.systemNameMap.set(this.normalizeSystemName(systemName), systemName);
+                }
             });
 
             console.log(`✅ Systems loaded into lookup table. Total: ${this.allSystems.size}`);
 
-            // Calculate scene center from average of all anchor point locations
-            await this.calculateSceneCenterFromAnchors();
+            // Calculate scene center from all loaded systems
+            this.calculateSceneCenterFromSystems(vizData.systems);
 
             // Load additional data sources
-            const [sheetsData, specialData, customRoutesData] = await Promise.all([
+            const [sheetsData, specialData, anchorData] = await Promise.all([
                 dataManager.loadSheetsData(),
                 this.loadSpecialSystems(dataManager),
-                dataManager.loadCustomRoutes()
+                this.loadAnchorSystems(dataManager)
             ]);
 
             // Process all systems with their roles and status
-            await this.processAllSystems(vizData.systems, sheetsData, specialData, customRoutesData);
+            await this.processAllSystems(vizData.systems, sheetsData, specialData);
             
             console.log(`✅ Loaded ${vizData.systems.length} systems into OASIS visualization`);
             
         } catch (error) {
             console.error('❌ Failed to load OASIS systems:', error);
-            // Ensure we have a fallback center even if there's an error
-            this.useFallbackCenter();
         }
     }
 
     /**
-     * Calculate scene center from average of all anchor point locations
+     * Set scene center around the specified anchor system
      */
-    async calculateSceneCenterFromAnchors() {
-        try {
-            console.log(`🔍 Systems in lookup table: ${this.allSystems.size}`);
-            
-            const response = await fetch('/api/anchor-systems');
-            if (!response.ok) {
-                console.warn('⚠️ Could not load anchor systems, using memorial system as fallback');
-                this.useFallbackCenter();
-                return;
-            }
-            
-            const anchorSystems = await response.json();
-            console.log(`📍 Calculating scene center from ${anchorSystems.length} anchor systems`);
-
-            const validAnchors = [];
-            
-            // Find all anchor systems that exist in our main systems data
-            for (const anchor of anchorSystems) {
-                console.log(`🔍 Looking for anchor system: "${anchor.name}"`);
-                const system = this.getSystem(anchor.name);
-                if (system?.coords) {
-                    validAnchors.push(system.coords);
-                    console.log(`✅ Found anchor system: ${anchor.name} at`, system.coords);
-                } else {
-                    console.warn(`❌ Anchor system "${anchor.name}" not found in main systems data`);
-                }
-            }
-
-            if (validAnchors.length === 0) {
-                console.warn('⚠️ No valid anchor systems found, using memorial system as fallback');
-                this.useFallbackCenter();
-                return;
-            }
-
-            // Calculate average position
-            const sum = validAnchors.reduce((acc, coords) => ({
-                x: acc.x + coords.x,
-                y: acc.y + coords.y,
-                z: acc.z + coords.z
-            }), { x: 0, y: 0, z: 0 });
-
-            this.memorialCoords = {
-                x: sum.x / validAnchors.length,
-                y: sum.y / validAnchors.length,
-                z: sum.z / validAnchors.length
+    calculateSceneCenterFromSystems(systems) {
+        // Find the anchor system to center around
+        const anchorSystemName = '2MASS J05403931-0226460';
+        const anchorSystem = systems.find(s => (s.name || s.Name) === anchorSystemName);
+        
+        if (anchorSystem) {
+            this.sceneCenter = { 
+                x: anchorSystem.x || anchorSystem.X || 0, 
+                y: anchorSystem.y || anchorSystem.Y || 0, 
+                z: anchorSystem.z || anchorSystem.Z || 0 
             };
-
-            console.log(`🎯 Scene center calculated from ${validAnchors.length} anchor systems:`, this.memorialCoords);
-            
-        } catch (error) {
-            console.warn('⚠️ Error calculating scene center from anchors:', error);
-            this.useFallbackCenter();
-        }
-    }
-
-    /**
-     * Use fallback center (memorial system or default)
-     */
-    useFallbackCenter() {
-        const memorial = this.getSystem(this.memorialSystem);
-        if (memorial?.coords) {
-            this.memorialCoords = memorial.coords;
-            console.log(`🏛️ Using memorial system as scene center:`, this.memorialCoords);
+            console.log(`🎯 Scene centered on ${anchorSystemName} at coordinates:`, this.sceneCenter);
         } else {
-            console.warn('⚠️ Memorial system not found, using default center');
-            this.memorialCoords = { x: 470, y: -380, z: -1100 };
+            // Fallback to origin if anchor system not found
+            this.sceneCenter = { x: 0, y: 0, z: 0 };
+            console.log(`⚠️ Anchor system ${anchorSystemName} not found, centering on origin`);
+        }
+        
+        if (systems && systems.length > 0) {
+            console.log(`📊 Loaded ${systems.length} systems for visualization`);
+            // Log coordinate ranges for debugging
+            const xCoords = systems.map(s => (s.x || s.X || 0));
+            const yCoords = systems.map(s => (s.y || s.Y || 0)); 
+            const zCoords = systems.map(s => (s.z || s.Z || 0));
+            console.log(`📊 Coordinate ranges: X(${Math.min(...xCoords).toFixed(0)} to ${Math.max(...xCoords).toFixed(0)}), Y(${Math.min(...yCoords).toFixed(0)} to ${Math.max(...yCoords).toFixed(0)}), Z(${Math.min(...zCoords).toFixed(0)} to ${Math.max(...zCoords).toFixed(0)})`);
         }
     }
 
     /**
      * Process all systems and categorize them based on their role in the colonization
      */
-    async processAllSystems(allSystems, sheetsData, specialData, customRoutesData) {
+    async processAllSystems(allSystems, sheetsData, specialData) {
         // Create lookup maps for efficient categorization with case-insensitive keys
-        const routeMap = new Map();
-        const fcMap = new Map();
         const specialMap = new Map();
-        const customRouteMap = new Map();
 
-        // Build route system map
-        if (sheetsData?.route) {
-            sheetsData.route.forEach(system => {
-                const normalized = this.normalizeSystemName(system.system_name);
-                routeMap.set(normalized, system);
-            });
-        }
 
-        // Build custom routes map
-        if (customRoutesData) {
-            Object.entries(customRoutesData).forEach(([routeName, routeSystems]) => {
-                routeSystems.forEach(routeSystem => {
-                    const normalized = this.normalizeSystemName(routeSystem.system_name);
-                    customRouteMap.set(normalized, { ...routeSystem, routeName });
-                });
-            });
-        }
-
-        // Build fleet carrier map
-        if (sheetsData?.fleetCarriers) {
-            sheetsData.fleetCarriers.forEach(fc => {
-                const normalized = this.normalizeSystemName(fc.location);
-                fcMap.set(normalized, fc);
-            });
-        }
 
         // Build special systems map
         if (specialData) {
             specialData.forEach(special => {
-                const normalized = this.normalizeSystemName(special.system_name || special.name);
+                const normalized = this.normalizeSystemName(special.name || special.system_name);
                 specialMap.set(normalized, special);
             });
         }
 
         // Separate systems for different processing
         const specialSystems = [];
-        const routeSystems = [];
-        const customRouteSystems = [];
         const populatedSystems = [];
-        const unclaimedSystems = [];
 
-        // Categorize all systems - prioritize populated over route completion
+        // Categorize all systems (no background stars - only special and populated)
         for (const system of allSystems) {
-            const normalized = this.normalizeSystemName(system.name);
+            const systemName = system.name || system.Name;
+            const normalized = this.normalizeSystemName(systemName);
             
             if (specialMap.has(normalized)) {
                 specialSystems.push(system);
-            } else if (system.information?.population > 0) {
-                // Prioritize populated systems over route status
+            } else if ((system.population && system.population > 0) || 
+                      (system.Population && system.Population > 0)) {
                 populatedSystems.push(system);
-            } else if (routeMap.has(normalized)) {
-                routeSystems.push({ system, routeInfo: routeMap.get(normalized) });
-            } else if (customRouteMap.has(normalized)) {
-                customRouteSystems.push({ system, routeInfo: customRouteMap.get(normalized) });
-            } else {
-                unclaimedSystems.push(system);
             }
+            // Skip unclaimed systems - not displayed for clean visualization
         }
+
+        console.log(`📊 Processing ${specialSystems.length} special systems and ${populatedSystems.length} populated systems`);
+        console.log(`📊 Skipping ${allSystems.length - specialSystems.length - populatedSystems.length} background systems for clean visualization`);
 
         // Process each category
         await this.processSpecialSystems(specialSystems, specialData);
-        await this.processRouteSystems(routeSystems);
-        await this.processCustomRoutes(customRouteSystems);
         await this.processPopulatedSystems(populatedSystems);
-        await this.processFleetCarriers(sheetsData);
-        await this.processRegionLabels(); // Add region labels
-        this.createUnclaimedStarsParticles(unclaimedSystems);
 
-        console.log(`✅ Processed: ${specialSystems.length} special, ${routeSystems.length} route, ${customRouteSystems.length} custom route, ${populatedSystems.length} populated, ${unclaimedSystems.length} unclaimed`);
+        console.log(`✅ Visualization complete: ${specialSystems.length} special + ${populatedSystems.length} populated systems displayed`);
     }
 
     /**
@@ -471,10 +395,15 @@ export class SceneManager {
      */
     async processSpecialSystems(specialSystems, specialData) {
         for (const system of specialSystems) {
+            const systemName = system.name || system.Name;
             const specialInfo = specialData.find(s => 
-                this.normalizeSystemName(s.system_name || s.name) === this.normalizeSystemName(system.name)
+                this.normalizeSystemName(s.name || s.system_name) === this.normalizeSystemName(systemName)
             );
-            const coords = this.scaleCoordinatesForScene(system.coords);
+            const coords = this.scaleCoordinatesForScene({
+                x: system.x || system.X, 
+                y: system.y || system.Y, 
+                z: system.z || system.Z
+            });
 
             // Create key system with special effects - smaller size
             const geometry = new THREE.SphereGeometry(1.5, 16, 16);
@@ -487,6 +416,12 @@ export class SceneManager {
             const sphere = new THREE.Mesh(geometry, material);
             sphere.position.set(coords.x, coords.y, coords.z);
             sphere.userData.isPulsing = true;
+            
+            // Debug sphere positioning
+            console.log(`🔍 Positioning sphere for ${system.name}:`, 
+                `Raw: (${system.x}, ${system.y}, ${system.z})`,
+                `Scene: (${coords.x.toFixed(2)}, ${coords.y.toFixed(2)}, ${coords.z.toFixed(2)})`);
+            
 
             // Add glow effect - smaller
             const glowGeometry = new THREE.SphereGeometry(3, 16, 16);
@@ -500,12 +435,16 @@ export class SceneManager {
 
             // Store system data
             this.systemData.set(sphere.id, {
-                name: system.name,
+                name: systemName,
                 category: 'keySystem',
                 coordinates: coords,
-                originalCoordinates: system.coords,
-                primaryStar: system.primaryStar,
-                information: system.information,
+                originalCoordinates: {
+                    x: system.x || system.X, 
+                    y: system.y || system.Y, 
+                    z: system.z || system.Z
+                },
+                primaryStar: system.primaryStar || {},
+                information: {population: system.population || system.Population} || {},
                 specialInfo: specialInfo
             });
 
@@ -515,49 +454,7 @@ export class SceneManager {
         }
     }
 
-    /**
-     * Process region labels from anchor systems CSV
-     */
-    async processRegionLabels() {
-        try {
-            const response = await fetch('/api/anchor-systems');
-            if (!response.ok) {
-                console.warn('Could not load anchor systems for region labels');
-                return;
-            }
-            
-            const anchorSystems = await response.json();
-            console.log(`🏷️ Processing ${anchorSystems.length} anchor systems for region labels`);
 
-            for (const anchor of anchorSystems) {
-                // Skip systems without descriptions
-                if (!anchor.description || !anchor.description.trim()) {
-                    continue;
-                }
-
-                // Find this system in all systems using case-insensitive lookup
-                const system = this.getSystem(anchor.name);
-                if (!system?.coords) {
-                    console.warn(`❌ Anchor system "${anchor.name}" not found in main systems data`);
-                    continue;
-                }
-
-                const coords = this.scaleCoordinatesForScene(system.coords);
-                console.log(`📍 Adding region label: "${anchor.description}" for system: ${anchor.name}`);
-                
-                const label = this.createRegionLabel(anchor.description, anchor.name);
-                
-                // Position label well above the system to avoid crowded star areas
-                this.fcLabels.push({
-                    element: label,
-                    position: new THREE.Vector3(coords.x, coords.y + 15, coords.z),
-                    type: 'region'
-                });
-            }
-        } catch (error) {
-            console.warn('Could not process region labels:', error);
-        }
-    }
 
     /**
      * Create HTML region label - just the region name
@@ -571,7 +468,7 @@ export class SceneManager {
         
         // Add custom blurbs for regions
         const regionBlurbs = this.getRegionBlurbs();
-        const blurb = regionBlurbs[description] || `Region: ${description}\nAnchor System: ${systemName}`;
+        const blurb = regionBlurbs[description] || `Region: ${description}`;
         label.title = blurb;
         
         // Store region data for click handling - use CSV description for lore lookups
@@ -614,262 +511,22 @@ export class SceneManager {
         return label;
     }
 
-    /**
-     * Process route systems
-     */
-    async processRouteSystems(routeSystems) {
-        // Sort systems by order for proper route line connection
-        const sortedRouteSystems = [...routeSystems].sort((a, b) => {
-            const orderA = parseInt(a.routeInfo['#']) || 0;
-            const orderB = parseInt(b.routeInfo['#']) || 0;
-            return orderA - orderB;
-        });
 
-        // Create route lines connecting all expedition systems - DISABLED
-        // if (sortedRouteSystems.length > 1) {
-        //     this.createExpeditionRouteLines(sortedRouteSystems);
-        // }
 
-        for (const { system, routeInfo } of routeSystems) {
-            const coords = this.scaleCoordinatesForScene(system.coords);
-            let color, category, isPulsing = false;
 
-            // Determine status and appearance - colors match legend exactly
-            if (routeInfo['completed?_'] === 'TRUE') {
-                color = 0x8000FF; // Purple (#8000FF) - same as populated systems
-                category = 'populated'; // Group with populated systems
-            } else if (routeInfo['claimed?_'] === 'TRUE') {
-                color = 0xFF8000; // Orange (#FF8000) - matches legend
-                category = 'routeInProgress';
-                isPulsing = true;
-            } else {
-                color = 0xFFFF00; // Yellow (#FFFF00) - matches legend
-                category = 'routePlanned';
-            }
-
-            // Create neon-style system with glow effect
-            const geometry = new THREE.SphereGeometry(0.8, 12, 12);
-            const material = new THREE.MeshBasicMaterial({
-                color: color,
-                transparent: true,
-                opacity: 0.9
-            });
-
-            const sphere = new THREE.Mesh(geometry, material);
-            sphere.position.set(coords.x, coords.y, coords.z);
-            if (isPulsing) sphere.userData.isPulsing = true;
-
-            // Add glow effect
-            const glowGeometry = new THREE.SphereGeometry(2, 12, 12);
-            const glowMaterial = new THREE.MeshBasicMaterial({
-                color: color,
-                transparent: true,
-                opacity: 0.3
-            });
-            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-            glow.position.copy(sphere.position);
-
-            // Store system data
-            this.systemData.set(sphere.id, {
-                name: system.name,
-                category: category,
-                coordinates: coords,
-                originalCoordinates: system.coords,
-                primaryStar: system.primaryStar,
-                information: system.information,
-                routeInfo: routeInfo
-            });
-
-            this.groups[category].add(sphere);
-            this.groups[category].add(glow);
-            this.interactiveObjects.push(sphere);
-        }
-    }
-
-    /**
-     * Process custom route systems with route line visualization
-     */
-    async processCustomRoutes(customRouteSystems) {
-        if (customRouteSystems.length === 0) return;
-
-        // Group systems by route name
-        const routeGroups = {};
-        customRouteSystems.forEach(({ system, routeInfo }) => {
-            if (!routeGroups[routeInfo.routeName]) {
-                routeGroups[routeInfo.routeName] = [];
-            }
-            routeGroups[routeInfo.routeName].push({ system, routeInfo });
-        });
-
-        console.log(`📍 Processing ${customRouteSystems.length} custom route systems in ${Object.keys(routeGroups).length} routes`);
-
-        // Process each route
-        Object.entries(routeGroups).forEach(([routeName, routeSystems]) => {
-            // Sort systems by ID for proper route order
-            routeSystems.sort((a, b) => {
-                const idA = parseInt(a.routeInfo.id) || 0;
-                const idB = parseInt(b.routeInfo.id) || 0;
-                return idA - idB;
-            });
-
-            // Create route line - DISABLED
-            // this.createRouteLines(routeSystems, routeName);
-
-            // Create system markers
-            routeSystems.forEach(({ system, routeInfo }) => {
-                const coords = this.scaleCoordinatesForScene(system.coords);
-                let color, opacity;
-
-                // Color based on status - match legend exactly
-                switch (routeInfo.status?.toUpperCase()) {
-                    case 'DONE':
-                        color = 0x8000FF; // Purple (#8000FF) - same as populated systems
-                        opacity = 1.0;
-                        break;
-                    case 'IN PROGRESS':
-                        color = 0xFF8000; // Orange (#FF8000) - matches legend
-                        opacity = 0.8;
-                        break;
-                    default:
-                        color = 0xFFFF00; // Yellow (#FFFF00) - matches legend
-                        opacity = 0.6;
-                        break;
-                }
-
-                // Create custom route system sphere with glow
-                const geometry = new THREE.SphereGeometry(1.2, 12, 12);
-                const material = new THREE.MeshBasicMaterial({
-                    color: color,
-                    transparent: true,
-                    opacity: opacity
-                });
-
-                const sphere = new THREE.Mesh(geometry, material);
-                sphere.position.set(coords.x, coords.y, coords.z);
-
-                // Add glow effect
-                const glowGeometry = new THREE.SphereGeometry(2.8, 12, 12);
-                const glowMaterial = new THREE.MeshBasicMaterial({
-                    color: color,
-                    transparent: true,
-                    opacity: 0.3
-                });
-                const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-                glow.position.copy(sphere.position);
-                
-                // Store system data for interaction - treat as planned route
-                sphere.userData = {
-                    name: system.name,
-                    category: 'routePlanned',
-                    coordinates: coords,
-                    originalCoordinates: system.coords,
-                    primaryStar: system.primaryStar,
-                    information: system.information,
-                    routeInfo: {
-                        'claimed?_': 'FALSE',
-                        'completed?_': routeInfo.status?.toUpperCase() === 'DONE' ? 'TRUE' : 'FALSE',
-                        'architect?_': '',
-                        'assigned_fc': '',
-                        system_name: system.name,
-                        // Custom route specific info
-                        customRoute: true,
-                        routeName: routeInfo.routeName,
-                        routeStatus: routeInfo.status,
-                        routeId: routeInfo.id
-                    }
-                };
-
-                // Track route objects for show/hide functionality
-                if (!this.routeObjects.has(routeInfo.routeName)) {
-                    this.routeObjects.set(routeInfo.routeName, []);
-                }
-                this.routeObjects.get(routeInfo.routeName).push(sphere, glow);
-
-                // Add to planned routes group instead of custom routes
-                this.groups.routePlanned.add(sphere);
-                this.groups.routePlanned.add(glow);
-                this.interactiveObjects.push(sphere);
-                this.systemData.set(sphere.id, sphere.userData);
-            });
-
-            console.log(`✅ Created custom route "${routeName}" with ${routeSystems.length} systems`);
-        });
-    }
-
-    /**
-     * Create expedition route lines connecting main route systems in order
-     */
-    createExpeditionRouteLines(routeSystems) {
-        if (routeSystems.length < 2) return;
-
-        const points = routeSystems.map(({ system }) => {
-            const coords = this.scaleCoordinatesForScene(system.coords);
-            return new THREE.Vector3(coords.x, coords.y, coords.z);
-        });
-
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({
-            color: 0xFFFF00, // Yellow (#FFFF00) - matches legend
-            opacity: 0.7,
-            transparent: true,
-            linewidth: 2
-        });
-
-        const line = new THREE.Line(geometry, material);
-        line.userData = {
-            type: 'expeditionRouteLine',
-            routeName: 'Main Expedition Route'
-        };
-
-        this.groups.routePlanned.add(line);
-        console.log(`📍 Created expedition route line connecting ${points.length} systems`);
-    }
-
-    /**
-     * Create route lines connecting systems in order
-     */
-    createRouteLines(routeSystems, routeName) {
-        if (routeSystems.length < 2) return;
-
-        const points = routeSystems.map(({ system }) => {
-            const coords = this.scaleCoordinatesForScene(system.coords);
-            return new THREE.Vector3(coords.x, coords.y, coords.z);
-        });
-
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({
-            color: 0xFFFF00, // Yellow (#FFFF00) - matches legend
-            opacity: 0.7,
-            transparent: true,
-            linewidth: 2
-        });
-
-        const line = new THREE.Line(geometry, material);
-        line.userData = {
-            type: 'routeLine',
-            routeName: routeName
-        };
-
-        // Track route object for show/hide functionality
-        if (!this.routeObjects.has(routeName)) {
-            this.routeObjects.set(routeName, []);
-        }
-        this.routeObjects.get(routeName).push(line);
-
-        this.groups.routePlanned.add(line);
-        console.log(`📍 Created yellow route line for "${routeName}" connecting ${points.length} systems`);
-    }
 
     /**
      * Process populated systems - now purple
      */
     async processPopulatedSystems(populatedSystems) {
-        // Calculate population range for logarithmic scaling
+        console.log(`✨ Creating particle system for ${populatedSystems.length} populated systems`);
+        
+        // Calculate population range for size scaling
         let minPop = Infinity;
         let maxPop = 0;
         
         for (const system of populatedSystems) {
-            const pop = system.information.population || 1;
+            const pop = system.population || system.Population || 1;
             minPop = Math.min(minPop, pop);
             maxPop = Math.max(maxPop, pop);
         }
@@ -878,285 +535,86 @@ export class SceneManager {
         const maxLogPop = Math.log10(maxPop);
         
         console.log(`📊 Population range: ${minPop.toLocaleString()} - ${maxPop.toLocaleString()}`);
-        console.log(`📊 Log scale range: ${minLogPop.toFixed(2)} - ${maxLogPop.toFixed(2)}`);
 
-        for (const system of populatedSystems) {
-            const coords = this.scaleCoordinatesForScene(system.coords);
-            const population = system.information.population || 1;
-            
-            // Default size (when population scaling is off)
-            const defaultSize = 0.8;
-            
-            // Calculate logarithmic size for population scaling with enhanced curve
-            const logPop = Math.log10(population);
-            let normalizedLogPop = (logPop - minLogPop) / (maxLogPop - minLogPop);
-            
-            // Apply power curve to make differences more dramatic
-            // Use power of 1.5 to emphasize larger populations even more
-            normalizedLogPop = Math.pow(normalizedLogPop, 1.5);
-            
-            const scaledSize = this.populationScaling.minSize + 
-                (normalizedLogPop * (this.populationScaling.maxSize - this.populationScaling.minSize));
-
-            // Use default size initially, scaled size when enabled
-            const currentSize = this.populationScaling.enabled ? scaledSize : defaultSize;
-            
-            // Determine sphere quality based on size (higher quality for larger populations)
-            let sphereSegments = 8; // Default low quality
-            let glowIntensity = 0.3;
-            let sphereOpacity = 0.8;
-            
-            if (this.populationScaling.enabled) {
-                // Scale quality and effects based on population size
-                if (scaledSize > 4.0) {
-                    sphereSegments = 20; // High quality for mega-cities
-                    glowIntensity = 0.6;
-                    sphereOpacity = 0.95;
-                } else if (scaledSize > 2.0) {
-                    sphereSegments = 16; // Medium-high quality for large cities
-                    glowIntensity = 0.45;
-                    sphereOpacity = 0.9;
-                } else if (scaledSize > 1.0) {
-                    sphereSegments = 12; // Medium quality for medium cities
-                    glowIntensity = 0.35;
-                    sphereOpacity = 0.85;
-                } else {
-                    sphereSegments = 8; // Low quality for small settlements
-                    glowIntensity = 0.2;
-                    sphereOpacity = 0.75;
-                }
-            }
-
-            const geometry = new THREE.SphereGeometry(currentSize, sphereSegments, sphereSegments);
-            const material = new THREE.MeshBasicMaterial({
-                color: 0x8000FF, // Purple (#8000FF) - matches legend
-                transparent: true,
-                opacity: sphereOpacity
-            });
-
-            const sphere = new THREE.Mesh(geometry, material);
-            sphere.position.set(coords.x, coords.y, coords.z);
-
-            // Add glow effect with variable intensity
-            const glowSize = this.populationScaling.enabled ? 
-                currentSize + (0.3 + (scaledSize / this.populationScaling.maxSize) * 1.2) : // Dynamic glow based on size
-                currentSize + 0.5; // Default glow
-                
-            const glowGeometry = new THREE.SphereGeometry(glowSize, Math.max(8, sphereSegments - 4), Math.max(8, sphereSegments - 4));
-            const glowMaterial = new THREE.MeshBasicMaterial({
-                color: 0x8000FF,
-                transparent: true,
-                opacity: glowIntensity
-            });
-            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-            glow.position.copy(sphere.position);
-
-            // Store size information for population scaling toggle
-            this.populationScaling.originalSizes.set(sphere.id, {
-                defaultSize: defaultSize,
-                scaledSize: scaledSize,
-                population: population,
-                sphere: sphere,
-                glow: glow,
-                defaultGlowSize: defaultSize + 0.5,
-                scaledGlowSize: glowSize,
-                sphereSegments: sphereSegments,
-                glowIntensity: glowIntensity,
-                sphereOpacity: sphereOpacity
-            });
-
-            // Store system data
-            this.systemData.set(sphere.id, {
-                name: system.name,
-                category: 'populated',
-                coordinates: coords,
-                originalCoordinates: system.coords,
-                primaryStar: system.primaryStar,
-                information: system.information
-            });
-
-            this.groups.populated.add(sphere);
-            this.groups.populated.add(glow);
-            this.interactiveObjects.push(sphere);
-        }
-    }
-
-    /**
-     * Process fleet carriers with dynamic HTML labels
-     */
-    async processFleetCarriers(sheetsData) {
-        if (!sheetsData?.fleetCarriers) return;
-
-        for (const fc of sheetsData.fleetCarriers) {
-            const system = this.getSystem(fc.location);
-            if (!system?.coords) {
-                console.warn(`❌ Fleet carrier location "${fc.location}" not found`);
-                continue;
-            }
-
-            const coords = this.scaleCoordinatesForScene(system.coords);
-            coords.y += 2; // Offset above system
-
-            // Create FC octahedron with glow effect
-            const geometry = new THREE.OctahedronGeometry(1);
-            const material = new THREE.MeshBasicMaterial({
-                color: 0x00FFFF, // Cyan (#00FFFF) - matches legend
-                transparent: true,
-                opacity: 0.9
-            });
-
-            const fc3d = new THREE.Mesh(geometry, material);
-            fc3d.position.set(coords.x, coords.y, coords.z);
-            fc3d.userData.isRotating = true;
-
-            // Add glow effect
-            const glowGeometry = new THREE.OctahedronGeometry(2.5);
-            const glowMaterial = new THREE.MeshBasicMaterial({
-                color: 0x00FFFF,
-                transparent: true,
-                opacity: 0.2
-            });
-            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-            glow.position.copy(fc3d.position);
-            glow.userData.isRotating = true;
-
-            // Create HTML text label for better visibility
-            const label = this.createFCLabel(fc);
-
-            // Store FC data
-            this.systemData.set(fc3d.id, {
-                name: fc.name,
-                callsign: fc.callsign,
-                owner: fc.owner_,
-                status: fc.status,
-                location: fc.location,
-                type: 'fleetCarrier',
-                coordinates: coords,
-                originalCoordinates: system.coords
-            });
-
-            this.groups.fleetCarriers.add(fc3d);
-            this.groups.fleetCarriers.add(glow);
-            this.interactiveObjects.push(fc3d);
-            
-            // Store label for screen-space updates
-            this.fcLabels.push({
-                element: label,
-                position: new THREE.Vector3(coords.x, coords.y + 5, coords.z), // Higher above FC
-                type: 'fc'
-            });
-        }
-    }
-
-    /**
-     * Create HTML FC label for better visibility
-     */
-    createFCLabel(fc) {
-        const label = document.createElement('div');
-        label.className = 'system-label fc-label';
-        label.textContent = fc.callsign; // Just the short callsign
-        label.title = `Fleet Carrier: ${fc.name}\nOwner: ${fc.owner_}\nStatus: ${fc.status}\nLocation: ${fc.location}`;
-        
-        // Make clickable and add FC data
-        label.dataset.fcData = JSON.stringify({
-            name: fc.name,
-            callsign: fc.callsign,
-            owner: fc.owner_,
-            status: fc.status,
-            location: fc.location,
-            type: 'fleetCarrier'
-        });
-        
-        // Compact, ergonomic styling
-        label.style.cssText = `
-            position: absolute;
-            background: rgba(0, 255, 255, 0.95);
-            color: #000;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
-            font-size: 11px;
-            font-weight: 700;
-            text-align: center;
-            border: 1px solid rgba(0, 255, 255, 0.8);
-            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
-            pointer-events: all;
-            z-index: 1000;
-            white-space: nowrap;
-            transform: translate(-50%, -50%);
-            min-width: 30px;
-            line-height: 1.2;
-        `;
-
-        // Add click handler
-        label.addEventListener('click', (event) => {
-            event.stopPropagation();
-            const fcData = JSON.parse(label.dataset.fcData);
-            if (this.onSystemClick) {
-                this.onSystemClick(fcData);
-            }
-        });
-
-        document.body.appendChild(label);
-        return label;
-    }
-
-    /**
-     * Create smooth particle system for unclaimed stars
-     */
-    createUnclaimedStarsParticles(unclaimedSystems) {
+        // Prepare particle data
         const positions = [];
         const colors = [];
         const sizes = [];
+        const populationData = []; // Store for interaction
 
-        for (const system of unclaimedSystems) {
-            const coords = this.scaleCoordinatesForScene(system.coords);
+        for (const system of populatedSystems) {
+            const coords = this.scaleCoordinatesForScene({
+                x: system.x || system.X, 
+                y: system.y || system.Y, 
+                z: system.z || system.Z
+            });
+            const systemName = system.name || system.Name;
+            const population = system.population || system.Population || 1;
+            
+            // Add position
             positions.push(coords.x, coords.y, coords.z);
-
-            // Check if this system belongs to Goid WH anchor - make it neon green
-            if (system.anchor_description && system.anchor_description.includes("'Goid WH")) {
-                // Neon green color for Goid WH systems
-                const color = new THREE.Color(0x00ff41); // Bright neon green
-                colors.push(color.r, color.g, color.b);
-            } else {
-                // Color by star type with softer tones for other systems
-                const starColor = this.getStarTypeColor(system.primaryStar?.type);
-                const color = new THREE.Color(starColor);
-                // Reduce intensity for easier viewing
-                color.multiplyScalar(0.7);
-                colors.push(color.r, color.g, color.b);
-            }
-
-            // Smaller, more consistent sizes
-            sizes.push(0.3 + Math.random() * 0.2);
+            
+            // Purple color for populated systems
+            const color = new THREE.Color(0x8000FF);
+            colors.push(color.r, color.g, color.b);
+            
+            // Calculate size based on population (logarithmic scaling)
+            const logPop = Math.log10(population);
+            let normalizedLogPop = (logPop - minLogPop) / (maxLogPop - minLogPop);
+            normalizedLogPop = Math.pow(normalizedLogPop, 1.2); // Slight curve for visibility
+            
+            // Size range for particles (optimized for performance)
+            const minSize = 3.0;
+            const maxSize = 12.0;
+            const particleSize = minSize + (normalizedLogPop * (maxSize - minSize));
+            sizes.push(particleSize);
+            
+            // Store system data for potential interaction
+            populationData.push({
+                name: systemName,
+                position: new THREE.Vector3(coords.x, coords.y, coords.z),
+                population: population,
+                originalCoordinates: {
+                    x: system.x || system.X, 
+                    y: system.y || system.Y, 
+                    z: system.z || system.Z
+                },
+                primaryStar: system.primaryStar,
+                information: system.information || {population: population}
+            });
         }
 
+        // Create particle geometry
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
         geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
 
-        // Smoother particle material
+        // Create particle material with better visual properties
         const material = new THREE.PointsMaterial({
-            size: 0.8,
+            size: 6.0,
             transparent: true,
-            opacity: 0.6, // Reduced opacity for easier viewing
+            opacity: 0.9,
             vertexColors: true,
             sizeAttenuation: true,
-            alphaTest: 0.1 // Helps with rendering performance
+            alphaTest: 0.1,
+            blending: THREE.AdditiveBlending  // Nice glow effect
         });
 
+        // Create particle system
         const particles = new THREE.Points(geometry, material);
-        this.groups.unclaimedStars.add(particles);
-
-        // Count Goid WH systems for logging
-        const goidWHCount = unclaimedSystems.filter(system => 
-            system.anchor_description && system.anchor_description.includes("'Goid WH")
-        ).length;
+        particles.userData.isPopulatedParticles = true;
+        particles.userData.populationData = populationData; // Store for interaction
         
-        console.log(`✨ Created smooth particle system with ${unclaimedSystems.length} unclaimed stars`);
-        console.log(`🟢 ${goidWHCount} Goid WH systems rendered in neon green`);
+        this.groups.populated.add(particles);
+        
+        console.log(`✅ Created high-performance particle system: ${populatedSystems.length} populated systems`);
+        console.log(`🚀 Performance boost: ${populatedSystems.length * 2} individual spheres → 1 particle system`);
     }
+
+
+
+
 
     /**
      * Get color for star type
@@ -1178,20 +636,30 @@ export class SceneManager {
     }
 
     /**
-     * Scale Elite Dangerous coordinates for Three.js scene
+     * Map Elite Dangerous coordinates to Three.js centered around anchor system
      */
     scaleCoordinatesForScene(coords) {
-        if (!this.memorialCoords) {
-            console.warn('⚠️ Memorial coordinates not set, using default');
-            this.memorialCoords = { x: 470, y: -380, z: -1100 };
-        }
-
-        const SCALE_FACTOR = 0.2;
+        // Scale factor for visualization
+        const SCALE_FACTOR = 0.1;
+        
+        // Center coordinates relative to scene center (anchor system)
+        const centeredX = coords.x - this.sceneCenter.x;
+        const centeredY = coords.y - this.sceneCenter.y;
+        const centeredZ = coords.z - this.sceneCenter.z;
+        
+        // Add small random offset to spread out systems that share coordinates
+        // This helps visualize clustered systems that would otherwise overlap
+        const jitter = 0.5; // Small offset range
+        const randomOffset = {
+            x: (Math.random() - 0.5) * jitter,
+            y: (Math.random() - 0.5) * jitter,
+            z: (Math.random() - 0.5) * jitter
+        };
 
         return {
-            x: (coords.x - this.memorialCoords.x) * SCALE_FACTOR,
-            y: (coords.y - this.memorialCoords.y) * SCALE_FACTOR,
-            z: (coords.z - this.memorialCoords.z) * SCALE_FACTOR
+            x: centeredX * SCALE_FACTOR + randomOffset.x,
+            y: centeredY * SCALE_FACTOR + randomOffset.y,  
+            z: centeredZ * SCALE_FACTOR + randomOffset.z
         };
     }
 
@@ -1207,6 +675,67 @@ export class SceneManager {
             return dataManager.parseCSV(csvText);
         } catch (error) {
             console.warn('⚠️ Could not load special systems:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Load anchor systems from vis_anchor_systems.csv and create labels
+     */
+    async loadAnchorSystems(dataManager) {
+        try {
+            console.log('📍 Loading anchor systems for labels...');
+            const response = await fetch('/data/vis_anchor_systems.csv');
+            if (!response.ok) {
+                console.warn('⚠️ Could not load vis_anchor_systems.csv');
+                return [];
+            }
+            
+            const csvText = await response.text();
+            const anchorSystems = dataManager.parseCSV(csvText);
+            console.log(`📍 Found ${anchorSystems.length} anchor systems:`, anchorSystems);
+            
+            // Create labels for each anchor system
+            for (const anchorSystem of anchorSystems) {
+                const systemName = anchorSystem.name;
+                const label = anchorSystem.label || anchorSystem.description;
+                
+                console.log(`📍 Looking for system: ${systemName} to add label: ${label}`);
+                
+                // Look up the system in our loaded data
+                const system = this.allSystems.get(systemName);
+                if (system) {
+                    console.log(`✅ Found system ${systemName} with coordinates:`, {x: system.x || system.X, y: system.y || system.Y, z: system.z || system.Z});
+                    
+                    // Get coordinates (handle both uppercase and lowercase)
+                    const coords = this.scaleCoordinatesForScene({
+                        x: system.x || system.X || 0,
+                        y: system.y || system.Y || 0,
+                        z: system.z || system.Z || 0
+                    });
+                    
+                    // Create a region label for this system
+                    const position = new THREE.Vector3(coords.x, coords.y + 5, coords.z); // Offset above the system
+                    const labelElement = this.createRegionLabel(label, systemName);
+                    
+                    this.systemLabels.push({
+                        element: labelElement,
+                        position: position,
+                        type: 'region'
+                    });
+                    
+                    console.log(`🏷️ Created label "${label}" for system ${systemName} at position:`, position);
+                } else {
+                    console.warn(`⚠️ System "${systemName}" not found in loaded data`);
+                    // Log available system names for debugging
+                    const availableNames = Array.from(this.allSystems.keys()).slice(0, 5);
+                    console.log(`📊 First 5 available system names:`, availableNames);
+                }
+            }
+            
+            return anchorSystems;
+        } catch (error) {
+            console.error('❌ Failed to load anchor systems:', error);
             return [];
         }
     }
@@ -1259,109 +788,17 @@ export class SceneManager {
         }
         
         // Handle label visibility
-        if (filterType === 'fleetCarriers') {
-            this.labelVisibility.fleetCarriers = enabled;
-        } else if (filterType === 'regionLabels') {
+        if (filterType === 'regionLabels') {
             this.labelVisibility.regionLabels = enabled;
         } else if (filterType === 'populationScale') {
-            this.togglePopulationScaling(enabled);
+            // Population scaling not applicable to particle systems
+            console.log('🔧 Population scaling not available for particle systems');
         }
     }
 
-    /**
-     * Toggle population-based scaling for populated systems
-     */
-    togglePopulationScaling(enabled) {
-        this.populationScaling.enabled = enabled;
-        
-        console.log(`📊 Population scaling ${enabled ? 'enabled' : 'disabled'}`);
-        
-        // Update all populated system sizes
-        this.populationScaling.originalSizes.forEach((sizeInfo, sphereId) => {
-            const { 
-                defaultSize, scaledSize, population, sphere, glow, 
-                defaultGlowSize, scaledGlowSize, sphereSegments, 
-                glowIntensity, sphereOpacity 
-            } = sizeInfo;
-            
-            // Choose size and effects based on scaling mode
-            const newSize = enabled ? scaledSize : defaultSize;
-            const newGlowSize = enabled ? scaledGlowSize : defaultGlowSize;
-            const newSegments = enabled ? sphereSegments : 8;
-            const newGlowIntensity = enabled ? glowIntensity : 0.3;
-            const newSphereOpacity = enabled ? sphereOpacity : 0.8;
-            
-            // Update sphere geometry with appropriate quality
-            sphere.geometry.dispose(); // Clean up old geometry
-            sphere.geometry = new THREE.SphereGeometry(newSize, newSegments, newSegments);
-            sphere.material.opacity = newSphereOpacity;
-            
-            // Update glow geometry with enhanced effects
-            glow.geometry.dispose(); // Clean up old geometry  
-            glow.geometry = new THREE.SphereGeometry(newGlowSize, Math.max(8, newSegments - 4), Math.max(8, newSegments - 4));
-            glow.material.opacity = newGlowIntensity;
-            
-            if (enabled) {
-                const systemName = this.systemData.get(sphereId)?.name || 'Unknown';
-                console.log(`📊 ${systemName}: ${population.toLocaleString()} pop → size ${newSize.toFixed(2)} (${newSegments} segments, ${(newGlowIntensity * 100).toFixed(0)}% glow)`);
-            }
-        });
-        
-        if (enabled) {
-            console.log(`📊 Population scaling ACTIVE: dramatic size range from ${this.populationScaling.minSize} to ${this.populationScaling.maxSize} (40x difference!)`);
-            console.log(`📊 Visual enhancements: Variable sphere quality (8-20 segments), dynamic glow intensity (20%-60%), enhanced opacity`);
-            
-            // Show some examples of the scaling
-            const examples = Array.from(this.populationScaling.originalSizes.values())
-                .sort((a, b) => a.population - b.population);
-            
-            if (examples.length > 0) {
-                console.log(`📊 SMALLEST: ${examples[0].population.toLocaleString()} pop → size ${examples[0].scaledSize.toFixed(2)}`);
-                if (examples.length > 1) {
-                    const largest = examples[examples.length - 1];
-                    console.log(`📊 LARGEST: ${largest.population.toLocaleString()} pop → size ${largest.scaledSize.toFixed(2)}`);
-                    const ratio = largest.scaledSize / examples[0].scaledSize;
-                    console.log(`📊 SIZE RATIO: Largest is ${ratio.toFixed(1)}x bigger than smallest!`);
-                }
-            }
-        } else {
-            console.log(`📊 Population scaling DISABLED: uniform size ${this.populationScaling.originalSizes.values().next().value?.defaultSize || 0.8}`);
-        }
-    }
 
-    /**
-     * Show a specific custom route by name
-     */
-    showRoute(routeName) {
-        const routeObjects = this.routeObjects.get(routeName);
-        if (!routeObjects) {
-            console.warn(`⚠️ Route "${routeName}" not found`);
-            return;
-        }
 
-        routeObjects.forEach(object => {
-            object.visible = true;
-        });
-        
-        console.log(`✅ Showing route: ${routeName} (${routeObjects.length} objects)`);
-    }
 
-    /**
-     * Hide a specific custom route by name
-     */
-    hideRoute(routeName) {
-        const routeObjects = this.routeObjects.get(routeName);
-        if (!routeObjects) {
-            console.warn(`⚠️ Route "${routeName}" not found`);
-            return;
-        }
-
-        routeObjects.forEach(object => {
-            object.visible = false;
-        });
-        
-        console.log(`🚫 Hidden route: ${routeName} (${routeObjects.length} objects)`);
-    }
 
     /**
      * Get system data by name
@@ -1407,7 +844,7 @@ export class SceneManager {
         });
         
         // Clean up HTML labels
-        this.fcLabels.forEach(labelInfo => {
+        this.systemLabels.forEach(labelInfo => {
             if (labelInfo.element && labelInfo.element.parentNode) {
                 labelInfo.element.parentNode.removeChild(labelInfo.element);
             }
@@ -1417,7 +854,7 @@ export class SceneManager {
         this.systemData.clear();
         this.allSystems.clear();
         this.systemNameMap.clear();
-        this.fcLabels.length = 0;
+        this.systemLabels.length = 0;
     }
 
     /**
@@ -1436,6 +873,9 @@ export class SceneManager {
             // Auto-rotation permanently disabled
             
             this.controls.update();
+            
+            // Update distance-based fading for smooth transitions
+            this.updateDistanceFading();
             
             // Update FC and region labels to face camera
             this.updateLabels();
@@ -1467,13 +907,13 @@ export class SceneManager {
         // First pass: calculate base positions
         const labelPositions = [];
         
-        for (let i = 0; i < this.fcLabels.length; i++) {
-            const labelInfo = this.fcLabels[i];
+        for (let i = 0; i < this.systemLabels.length; i++) {
+            const labelInfo = this.systemLabels[i];
             const { element, position, type } = labelInfo;
             
             // Check label visibility based on filter settings
             let shouldShow = true;
-            if (type === 'fc' && !this.labelVisibility.fleetCarriers) {
+            if (type === 'fc') { // Fleet carriers removed
                 shouldShow = false;
             } else if (type === 'region' && !this.labelVisibility.regionLabels) {
                 shouldShow = false;
@@ -1533,48 +973,130 @@ export class SceneManager {
      * Resolve label collisions using human-centered design principles
      */
     resolveCollisions(labelPositions) {
-        const fcLabels = labelPositions.filter(l => l.type === 'fc');
-        const COLLISION_DISTANCE = 50; // Minimum distance between FC labels
-        const MAX_ITERATIONS = 10;
+        // Fleet carrier collision detection removed - no longer needed
+        return;
+    }
+
+    /**
+     * Update object opacity based on distance from center (smooth fading)
+     */
+    updateDistanceFading() {
+        const sceneCenter = new THREE.Vector3(0, 0, 0); // Center is the anchor system
         
-        for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
-            let hadCollision = false;
+        // Reset stats
+        this.fadingStats.totalObjects = 0;
+        this.fadingStats.visibleObjects = 0;
+        
+        // Apply smooth opacity fading based on distance from center
+        Object.entries(this.groups).forEach(([groupName, group]) => {
+            const fadeConfig = this.fadeDistances[groupName];
+            if (!fadeConfig) return;
             
-            for (let i = 0; i < fcLabels.length; i++) {
-                for (let j = i + 1; j < fcLabels.length; j++) {
-                    const label1 = fcLabels[i];
-                    const label2 = fcLabels[j];
+            group.children.forEach(object => {
+                this.fadingStats.totalObjects++;
+                
+                // Handle particle systems differently from individual objects
+                if (object.userData.isPopulatedParticles) {
+                    // For particle systems, fade the entire system based on its bounding sphere
+                    const boundingBox = new THREE.Box3().setFromObject(object);
+                    const center = boundingBox.getCenter(new THREE.Vector3());
+                    const distance = sceneCenter.distanceTo(center);
                     
-                    const dx = label1.x - label2.x;
-                    const dy = label1.y - label2.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    // Calculate opacity for the entire particle system
+                    let opacity = 1.0;
+                    if (distance > fadeConfig.start) {
+                        if (distance >= fadeConfig.end) {
+                            opacity = 0.0;
+                        } else {
+                            const fadeRange = fadeConfig.end - fadeConfig.start;
+                            const fadeProgress = (distance - fadeConfig.start) / fadeRange;
+                            opacity = 1.0 - fadeProgress;
+                        }
+                    }
                     
-                    if (distance < COLLISION_DISTANCE && distance > 0) {
-                        hadCollision = true;
+                    if (opacity > 0.1) {
+                        this.fadingStats.visibleObjects++;
+                    }
+                    
+                    // Apply opacity to particle system
+                    if (object.material) {
+                        if (object.userData.originalOpacity === undefined) {
+                            object.userData.originalOpacity = object.material.opacity || 1.0;
+                        }
                         
-                        // Calculate separation vector
-                        const separationDistance = (COLLISION_DISTANCE - distance) * 0.5;
-                        const separationX = (dx / distance) * separationDistance;
-                        const separationY = (dy / distance) * separationDistance;
+                        const finalOpacity = object.userData.originalOpacity * opacity;
+                        object.material.opacity = finalOpacity;
+                        object.material.transparent = true;
+                        object.visible = opacity > 0.01;
+                    }
+                } else {
+                    // Handle individual objects (like special systems)
+                    const distance = sceneCenter.distanceTo(object.position);
+                    
+                    // Calculate opacity based on distance
+                    let opacity = 1.0;
+                    if (distance > fadeConfig.start) {
+                        if (distance >= fadeConfig.end) {
+                            opacity = 0.0;
+                        } else {
+                            // Smooth fade between start and end distances
+                            const fadeRange = fadeConfig.end - fadeConfig.start;
+                            const fadeProgress = (distance - fadeConfig.start) / fadeRange;
+                            opacity = 1.0 - fadeProgress;
+                        }
+                    }
+                    
+                    if (opacity > 0.1) {
+                        this.fadingStats.visibleObjects++;
+                    }
+                    
+                    // Apply opacity to the object's material
+                    if (object.material) {
+                        // Store original opacity if not already stored
+                        if (object.userData.originalOpacity === undefined) {
+                            object.userData.originalOpacity = object.material.opacity || 1.0;
+                        }
                         
-                        // Move labels apart in a natural, readable pattern
-                        // Prefer horizontal separation for better readability
-                        const horizontalBias = 1.5;
-                        label1.x += separationX * horizontalBias;
-                        label1.y += separationY;
-                        label2.x -= separationX * horizontalBias;
-                        label2.y -= separationY;
+                        // Apply distance-based opacity
+                        const finalOpacity = object.userData.originalOpacity * opacity;
+                        object.material.opacity = finalOpacity;
+                        object.material.transparent = true;
                         
-                        // Keep labels within screen bounds
-                        label1.x = Math.max(30, Math.min(this.canvas.clientWidth - 30, label1.x));
-                        label1.y = Math.max(20, Math.min(this.canvas.clientHeight - 20, label1.y));
-                        label2.x = Math.max(30, Math.min(this.canvas.clientWidth - 30, label2.x));
-                        label2.y = Math.max(20, Math.min(this.canvas.clientHeight - 20, label2.y));
+                        // Completely hide objects that are too far (performance optimization)
+                        object.visible = opacity > 0.01;
                     }
                 }
-            }
+            });
+        });
+        
+        // Update HTML labels based on distance from center
+        this.systemLabels.forEach(labelInfo => {
+            const distance = sceneCenter.distanceTo(labelInfo.position);
+            const fadeConfig = this.fadeDistances.regionLabels;
             
-            if (!hadCollision) break;
+            if (labelInfo.element && this.labelVisibility.regionLabels) {
+                let opacity = 1.0;
+                if (distance > fadeConfig.start) {
+                    if (distance >= fadeConfig.end) {
+                        opacity = 0.0;
+                    } else {
+                        const fadeRange = fadeConfig.end - fadeConfig.start;
+                        const fadeProgress = (distance - fadeConfig.start) / fadeRange;
+                        opacity = 1.0 - fadeProgress;
+                    }
+                }
+                
+                labelInfo.element.style.opacity = opacity;
+                labelInfo.element.style.display = opacity > 0.1 ? 'block' : 'none';
+            }
+        });
+        
+        // Log performance stats occasionally
+        const now = Date.now();
+        if (now - this.fadingStats.lastLogTime > 5000) { // Every 5 seconds
+            const fadePercent = ((this.fadingStats.totalObjects - this.fadingStats.visibleObjects) / this.fadingStats.totalObjects * 100).toFixed(1);
+            console.log(`🌟 Smooth Fading: ${this.fadingStats.visibleObjects}/${this.fadingStats.totalObjects} objects visible (${fadePercent}% faded)`);
+            this.fadingStats.lastLogTime = now;
         }
     }
 
@@ -1586,6 +1108,21 @@ export class SceneManager {
         this.camera.updateProjectionMatrix();
         
         this.renderer.setSize(width, height);
+    }
+
+    /**
+     * Add coordinate system helpers for debugging
+     */
+    addCoordinateHelpers() {
+        // Create axis helper (Red=X, Green=Y, Blue=Z)
+        const axesHelper = new THREE.AxesHelper(100);
+        this.scene.add(axesHelper);
+
+        // Create grid on XZ plane (Y=0)
+        const gridHelper = new THREE.GridHelper(500, 50, 0x444444, 0x222222);
+        this.scene.add(gridHelper);
+
+        console.log('🔍 Added coordinate helpers: Red=X, Green=Y, Blue=Z axes, Grid on XZ plane');
     }
 
     dispose() {

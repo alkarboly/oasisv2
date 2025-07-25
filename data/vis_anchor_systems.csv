@@ -1,26 +1,5 @@
-name,radius_ly,description
-2MASS J05405172-0226489,100,OSC I
-LAM01 ORIONIS,100,Lambda Orionis
-NGC 2232 Sector CR-L b8-0, 100,OSC III
-Trapezium Sector GM-U c3-2, 100,
-Col 69 Sector YV-C c13-1, 100,
-Col 69 Sector TF-S b19-0, 100,
-2MASS J05355200+0950293, 80,
-Col 69 Sector YP-N c7-7, 100,
-Col 69 Sector RN-S c4-9, 100,
-NGC 2232 Sector GR-V c2-3, 100,
-Col 69 Sector YU-N c7-1,50,
-Col 69 Sector WZ-N c7-2,50,
-Col 69 Sector KC-U d3-2,50,
-Col 69 Sector EI-E b14-0,50,
-Col 69 Sector HH-U d3-9,50,
-Col 69 Sector OT-J a28-0,50,
-Col 69 Sector FH-U d3-19,50,
-Col 69 Sector FH-U d3-7,50,
-Col 69 Sector DZ-H a29-0,50,
-Oochorrs ZA-A a96-0,50,
-Oochorrs YX-F d12-24,50,SoO
-Messier 78 Sector DL-Y d15,100,
-Messier 78 Sector PI-T c3-9,100,Horsehead
-Messier 78 Sector TO-R c4-3,100,
-Witch Head Sector IR-W c1-9, 75, 'Goid WH
+name,label
+2MASS J05403931-0226460,OSC I,
+NGC 2232 CPK 5739, OSC III,
+lam01 Orionis, lam01 Orionis
+Shenve, WitchHead

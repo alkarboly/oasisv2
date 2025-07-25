@@ -31,39 +31,26 @@
 
             <!-- Controls Panel -->
             <div class="controls-panel mobile-hidden">
-                <!-- Legend -->
+                <!-- System Types -->
                 <div class="legend">
                     <h3>System Types</h3>
                     <div class="legend-items">
                         <div class="legend-item">
                             <span class="legend-color" style="background: #FFD700; box-shadow: 0 0 10px #FFD700;"></span>
-                            <span>Key Systems</span>
+                            <span>Special Systems</span>
                         </div>
-                        <div class="legend-item">
-                            <span class="legend-color" style="background: #FF8000; box-shadow: 0 0 10px #FF8000;"></span>
-                            <span>In Progress</span>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-color" style="background: #FFFF00; box-shadow: 0 0 10px #FFFF00;"></span>
-                            <span>Planned</span>
-                        </div>
-
                         <div class="legend-item">
                             <span class="legend-color" style="background: #8000FF; box-shadow: 0 0 10px #8000FF;"></span>
-                            <span>Populated</span>
+                            <span>Populated Systems (Particles)</span>
                         </div>
-                        <div class="legend-item">
-                            <span class="legend-color" style="background: #00FFFF; box-shadow: 0 0 10px #00FFFF;"></span>
-                            <span>Fleet Carriers</span>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-color" style="background: #FFFFFF; opacity: 0.6;"></span>
-                            <span>Unclaimed</span>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-color" style="background: #00ff41; box-shadow: 0 0 10px #00ff41;"></span>
-                            <span>Thargoid NHSS</span>
-                        </div>
+                    </div>
+                    
+                    <!-- Performance Info -->
+                    <div class="performance-info">
+                        <p style="font-size: 11px; color: #888; margin-top: 8px;">
+                            <strong>High Performance:</strong> Particle-based rendering<br>
+                            <strong>Smooth Fading:</strong> Systems fade with distance from center
+                        </p>
                     </div>
                 </div>
 
@@ -72,37 +59,8 @@
                     <h3>Filters</h3>
                     <div class="filter-group">
                         <label class="filter-item">
-                            <input type="checkbox" id="filter-keySystem" checked>
-                            <span>Key Systems</span>
-                        </label>
-                        <label class="filter-item">
-                            <input type="checkbox" id="filter-routeInProgress" checked>
-                            <span>In Progress</span>
-                        </label>
-                        <label class="filter-item">
-                            <input type="checkbox" id="filter-routePlanned" checked>
-                            <span>Planned</span>
-                        </label>
-
-                        <label class="filter-item">
-                            <input type="checkbox" id="filter-populated" checked>
-                            <span>Populated</span>
-                        </label>
-                        <label class="filter-item">
-                            <input type="checkbox" id="filter-fleetCarriers" checked>
-                            <span>Fleet Carriers</span>
-                        </label>
-                        <label class="filter-item">
-                            <input type="checkbox" id="filter-unclaimedStars">
-                            <span>Unclaimed</span>
-                        </label>
-                        <label class="filter-item">
                             <input type="checkbox" id="filter-regionLabels">
                             <span>Regions</span>
-                        </label>
-                        <label class="filter-item">
-                            <input type="checkbox" id="filter-populationScale">
-                            <span>Population Scale</span>
                         </label>
                     </div>
                 </div>
@@ -116,16 +74,12 @@
                             <span class="stat-value" id="stat-total">0</span>
                         </div>
                         <div class="stat-item">
-                            <span class="stat-label">Fleet Carriers:</span>
-                            <span class="stat-value" id="stat-fleet-carriers">0</span>
-                        </div>
-                        <div class="stat-item">
                             <span class="stat-label">Populated:</span>
                             <span class="stat-value" id="stat-populated">0</span>
                         </div>
                         <div class="stat-item stat-expeditions">
                             <span class="stat-label">Active Expeditions:</span>
-                            <span class="stat-value" id="stat-expeditions">OSC III<br>Laden Swallow</span>
+                            <span class="stat-value" id="stat-expeditions">OSC III</span>
                         </div>
                     </div>
                 </div>

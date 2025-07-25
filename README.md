@@ -27,12 +27,6 @@ The OASIS Community Map is a real-time 3D visualization tool that displays the c
 - **Description**: Special memorial and landmark systems
 - **Source**: `special_systems.csv`
 
-### 🛣️ Expedition Route Systems
-- **Planned**: Yellow - Future colonization targets
-- **In Progress**: Orange with pulsing - Currently being developed  
-- **Complete**: Bright green - Successfully colonized
-- **Source**: Google Sheets expedition tracking
-
 ### 🏙️ Populated Systems
 - **Color**: Purple with size based on population
 - **Description**: Systems with established populations and economies
@@ -103,7 +97,7 @@ PORT=3000
 
 The application uses multiple data sources:
 
-1. **`data/combined_visualization_systems.json`** - Complete Elite Dangerous systems database
+1. **`data/spansh_colonized_systems.json`** - Complete Elite Dangerous systems database
 2. **`data/special_systems.csv`** - Key systems and memorials
 3. **Google Sheets API** - Live expedition tracking and fleet carrier data
 4. **`data/sheets/`** - Cached offline data when Sheets API is unavailable

@@ -4,35 +4,7 @@ export class DataManager {
         this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
     }
 
-    async loadAnchorSystems() {
-        const cacheKey = 'anchor-systems';
-        
-        // Check cache first
-        if (this.isCacheValid(cacheKey)) {
-            return this.cache.get(cacheKey).data;
-        }
 
-        try {
-            const response = await fetch('/api/anchor-systems');
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            const data = await response.json();
-            
-            // Cache the data
-            this.cache.set(cacheKey, {
-                data,
-                timestamp: Date.now()
-            });
-            
-            return data;
-            
-        } catch (error) {
-            console.error('Failed to load anchor systems:', error);
-            return null;
-        }
-    }
 
     async loadSheetsData() {
         const cacheKey = 'sheets-data';
@@ -90,7 +62,8 @@ export class DataManager {
             }
             
             const data = await response.json();
-            console.log(`✅ Loaded visualization data for ${Object.keys(data).length} systems`);
+            const systemCount = data.systems ? data.systems.length : 0;
+            console.log(`✅ Loaded visualization data for ${systemCount} systems`);
             
             // Cache the data
             this.cache.set(cacheKey, {
@@ -195,45 +168,5 @@ export class DataManager {
         }
         
         return data;
-    }
-
-    /**
-     * Load Custom Routes from CSV files
-     * @returns {Object|null} Custom routes data or null if failed
-     */
-    async loadCustomRoutes() {
-        const cacheKey = 'custom-routes';
-        
-        // Check cache first (5 minutes cache)
-        if (this.isCacheValid(cacheKey, 5 * 60 * 1000)) {
-            console.log('📍 Using cached custom routes data');
-            return this.cache.get(cacheKey).data;
-        }
-        
-        try {
-            console.log('📍 Loading custom routes from server...');
-            const response = await fetch('/api/custom-routes');
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            const data = await response.json();
-            const routeCount = Object.keys(data).length;
-            const systemCount = Object.values(data).reduce((sum, route) => sum + route.length, 0);
-            
-            console.log(`✅ Loaded ${routeCount} custom routes with ${systemCount} total systems`);
-            
-            // Cache the data
-            this.cache.set(cacheKey, {
-                data,
-                timestamp: Date.now()
-            });
-            
-            return data;
-            
-        } catch (error) {
-            console.error('❌ Failed to load custom routes:', error);
-            return null;
-        }
     }
 } 
