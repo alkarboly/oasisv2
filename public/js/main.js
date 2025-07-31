@@ -16,6 +16,9 @@ class OASISCommunityMap {
         this.loadingScreen = document.getElementById('loading-screen');
         this.loadingStatus = document.getElementById('loading-status');
         
+        // Store reference for scene manager access
+        window.app = this;
+        
         this.init();
     }
 
@@ -47,10 +50,10 @@ class OASISCommunityMap {
             this.hideLoadingScreen();
             
             this.isInitialized = true;
-            console.log('🚀 OASIS Community Map fully initialized');
+            console.log('🚀 Elite Dangerous Human Colonization Map fully initialized');
             
         } catch (error) {
-            console.error('❌ Failed to initialize OASIS Community Map:', error);
+            console.error('❌ Failed to initialize Elite Dangerous Human Colonization Map:', error);
             this.updateLoadingStatus('Error loading map. Please refresh the page.');
         }
     }
@@ -311,11 +314,20 @@ class OASISCommunityMap {
         const starLabel = document.querySelector('#system-star').parentElement.querySelector('.detail-label');
         if (starLabel) starLabel.textContent = 'Primary Star:';
 
-        // Update coordinates
+        // Update coordinates with click-to-center functionality
         const coordsElement = document.getElementById('system-coords');
         if (coordsElement && systemData.originalCoordinates) {
             const coords = systemData.originalCoordinates;
             coordsElement.textContent = `${coords.x.toFixed(2)}, ${coords.y.toFixed(2)}, ${coords.z.toFixed(2)}`;
+            
+            // Make coordinates clickable to center on this system
+            coordsElement.style.cursor = 'pointer';
+            coordsElement.title = 'Click to center view on this system';
+            coordsElement.onclick = (e) => {
+                e.stopPropagation();
+                console.log(`🎯 Centering on system: ${systemData.name}`);
+                this.sceneManager.smoothTransitionToSystem(systemData.name);
+            };
         }
 
         // Update primary star
@@ -551,7 +563,7 @@ class OASISCommunityMap {
 
 // Initialize application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🌌 Starting OASIS Community Map...');
+    console.log('🌌 Starting Elite Dangerous Human Colonization Map...');
     new OASISCommunityMap();
 });
 

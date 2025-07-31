@@ -46,7 +46,6 @@ export class SceneManager {
         // Label management
         this.systemLabels = []; // System HTML labels
         this.labelVisibility = {
-
             regionLabels: false  // Off by default
         };
         
@@ -502,8 +501,16 @@ export class SceneManager {
         label.addEventListener('click', (event) => {
             event.stopPropagation();
             const regionData = JSON.parse(label.dataset.regionData);
+            
+            // Show system info
             if (this.onSystemClick) {
                 this.onSystemClick(regionData);
+            }
+            
+            // Smoothly transition to the clicked system
+            if (regionData.systemName) {
+                console.log(`🎯 Label clicked: smoothly transitioning to ${regionData.systemName}`);
+                this.smoothTransitionToSystem(regionData.systemName);
             }
         });
 
@@ -555,8 +562,8 @@ export class SceneManager {
             positions.push(coords.x, coords.y, coords.z);
             
             // Purple color for populated systems
-            const color = new THREE.Color(0x8000FF);
-            colors.push(color.r, color.g, color.b);
+            const purpleColor = new THREE.Color(0x8000FF);
+            colors.push(purpleColor.r, purpleColor.g, purpleColor.b);
             
             // Calculate size based on population (logarithmic scaling)
             const logPop = Math.log10(population);
@@ -637,6 +644,10 @@ export class SceneManager {
 
     /**
      * Map Elite Dangerous coordinates to Three.js centered around anchor system
+     * Top-down view with mirroring fix:
+     * ED X (galactic east/west) → Three.js X (screen left/right, INVERTED to fix mirroring)
+     * ED Y (galactic up/down) → Three.js Y (screen up/down) 
+     * ED Z (galactic north/south) → Three.js Z (forward/back depth)
      */
     scaleCoordinatesForScene(coords) {
         // Scale factor for visualization
@@ -656,10 +667,11 @@ export class SceneManager {
             z: (Math.random() - 0.5) * jitter
         };
 
+        // Apply coordinate mapping for top-down view with mirroring fix
         return {
-            x: centeredX * SCALE_FACTOR + randomOffset.x,
-            y: centeredY * SCALE_FACTOR + randomOffset.y,  
-            z: centeredZ * SCALE_FACTOR + randomOffset.z
+            x: -centeredX * SCALE_FACTOR + randomOffset.x,       // ED X → Screen left/right (INVERTED to fix mirroring)
+            y: centeredY * SCALE_FACTOR + randomOffset.y,        // ED Y → Screen up/down (original top-down view)
+            z: centeredZ * SCALE_FACTOR + randomOffset.z         // ED Z → Screen depth (original mapping)
         };
     }
 
@@ -790,16 +802,9 @@ export class SceneManager {
         // Handle label visibility
         if (filterType === 'regionLabels') {
             this.labelVisibility.regionLabels = enabled;
-        } else if (filterType === 'populationScale') {
-            // Population scaling not applicable to particle systems
-            console.log('🔧 Population scaling not available for particle systems');
         }
     }
-
-
-
-
-
+    
     /**
      * Get system data by name
      */
@@ -836,6 +841,163 @@ export class SceneManager {
         this.controls.update();
 
         console.log(`🎯 Camera focused on ${systemData.name} at ${targetPosition.x}, ${targetPosition.y}, ${targetPosition.z}`);
+    }
+
+    /**
+     * Recenter the scene around a specific system
+     * @param {string} systemName - Name of the system to center on
+     */
+    async recenterScene(systemName) {
+        console.log(`🎯 Recentering scene on system: ${systemName}`);
+        
+        // Find the system in our data
+        const system = this.getSystem(systemName);
+        if (!system) {
+            console.warn(`⚠️ System "${systemName}" not found for recentering`);
+            return;
+        }
+        
+        // Update scene center to the new system's coordinates
+        this.sceneCenter = {
+            x: system.x || system.X || 0,
+            y: system.y || system.Y || 0,
+            z: system.z || system.Z || 0
+        };
+        
+        console.log(`🎯 New scene center:`, this.sceneCenter);
+        
+        // Clear and reload all systems with new center
+        this.clearScene();
+        
+        // Reload all systems - this will use the new scene center
+        const dataManager = window.app?.dataManager;
+        if (dataManager) {
+            await this.loadAllSystems(dataManager);
+        }
+        
+        // Reset camera to look at new center
+        this.camera.position.set(50, 30, 80);
+        this.camera.lookAt(0, 0, 0);
+        this.controls.target.set(0, 0, 0);
+        this.controls.update();
+        
+        console.log(`✅ Scene successfully recentered on ${systemName}`);
+    }
+
+    /**
+     * Smoothly transition camera and orbit center to a specific system
+     * @param {string} systemName - Name of the system to center on
+     */
+    async smoothTransitionToSystem(systemName) {
+        console.log(`🎯 Starting smooth transition to system: ${systemName}`);
+        
+        // Find the system in our data
+        const system = this.getSystem(systemName);
+        if (!system) {
+            console.warn(`⚠️ System "${systemName}" not found for transition`);
+            return;
+        }
+        
+        // Calculate the new system's position in current coordinate system
+        const newSystemCoords = this.scaleCoordinatesForScene({
+            x: system.x || system.X || 0,
+            y: system.y || system.Y || 0,
+            z: system.z || system.Z || 0
+        });
+        
+        // Store starting positions
+        const startCameraPos = this.camera.position.clone();
+        const startTargetPos = this.controls.target.clone();
+        const newTargetPos = new THREE.Vector3(newSystemCoords.x, newSystemCoords.y, newSystemCoords.z);
+        
+        // Calculate new camera position (maintain relative offset from new target)
+        const cameraOffset = startCameraPos.clone().sub(startTargetPos);
+        const newCameraPos = newTargetPos.clone().add(cameraOffset);
+        
+        // Animation parameters
+        const duration = 1500; // 1.5 seconds
+        const startTime = Date.now();
+        
+        // Smooth easing function (ease-in-out)
+        const easeInOut = (t) => {
+            return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+        };
+        
+        return new Promise((resolve) => {
+            const animate = () => {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const easedProgress = easeInOut(progress);
+                
+                // Interpolate camera position
+                this.camera.position.lerpVectors(startCameraPos, newCameraPos, easedProgress);
+                
+                // Interpolate orbit target
+                this.controls.target.lerpVectors(startTargetPos, newTargetPos, easedProgress);
+                this.controls.update();
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    // Animation complete - now reposition all objects around new center
+                    console.log(`✅ Smooth transition complete. Repositioning objects around new center...`);
+                    this.repositionAroundNewCenter(system).then(() => {
+                        resolve();
+                    });
+                }
+            };
+            
+            animate();
+        });
+    }
+    
+    /**
+     * Reposition all existing objects around a new center without reloading
+     * @param {Object} newCenterSystem - The system to use as the new center
+     */
+    async repositionAroundNewCenter(newCenterSystem) {
+        // Calculate the offset from current center to new center
+        const oldCenter = this.sceneCenter;
+        const newCenter = {
+            x: newCenterSystem.x || newCenterSystem.X || 0,
+            y: newCenterSystem.y || newCenterSystem.Y || 0,
+            z: newCenterSystem.z || newCenterSystem.Z || 0
+        };
+        
+        // Calculate the offset in scene coordinates
+        const offsetX = (oldCenter.x - newCenter.x) * 0.1; // Apply scale factor
+        const offsetY = (oldCenter.y - newCenter.y) * 0.1;
+        const offsetZ = (oldCenter.z - newCenter.z) * 0.1;
+        
+        console.log(`🔄 Repositioning objects with offset: (${offsetX.toFixed(2)}, ${offsetY.toFixed(2)}, ${offsetZ.toFixed(2)})`);
+        
+        // Move all objects in all groups
+        Object.values(this.groups).forEach(group => {
+            group.children.forEach(object => {
+                // Apply corrected coordinate mapping for the offset
+                object.position.x += -offsetX;  // X inverted
+                object.position.y += offsetY;   // Y normal  
+                object.position.z += offsetZ;   // Z normal
+            });
+        });
+        
+        // Update scene center
+        this.sceneCenter = newCenter;
+        
+        // Move labels
+        this.systemLabels.forEach(labelInfo => {
+            if (labelInfo.position) {
+                labelInfo.position.x += -offsetX;  // X inverted
+                labelInfo.position.y += offsetY;   // Y normal
+                labelInfo.position.z += offsetZ;   // Z normal
+            }
+        });
+        
+        // Set orbit controls to center on origin (where the new center system now is)
+        this.controls.target.set(0, 0, 0);
+        this.controls.update();
+        
+        console.log(`✅ Successfully repositioned scene around ${newCenterSystem.name || newCenterSystem.Name}`);
     }
 
     clearScene() {
@@ -1112,17 +1274,19 @@ export class SceneManager {
 
     /**
      * Add coordinate system helpers for debugging
+     * Top-down view mapping:
+     * Red=X (galactic east/west, INVERTED), Green=Y (galactic up/down), Blue=Z (galactic north/south)
      */
     addCoordinateHelpers() {
         // Create axis helper (Red=X, Green=Y, Blue=Z)
         const axesHelper = new THREE.AxesHelper(100);
         this.scene.add(axesHelper);
 
-        // Create grid on XZ plane (Y=0)
+        // Create grid on XZ plane (Y=0) for top-down view
         const gridHelper = new THREE.GridHelper(500, 50, 0x444444, 0x222222);
         this.scene.add(gridHelper);
 
-        console.log('🔍 Added coordinate helpers: Red=X, Green=Y, Blue=Z axes, Grid on XZ plane');
+        console.log('🔍 Coordinate helpers: Red=X (gal east/west, INVERTED), Green=Y (gal up/down), Blue=Z (gal north/south), Grid on XZ plane (top-down view)');
     }
 
     dispose() {

@@ -168,11 +168,24 @@ Google Sheets Data + Coordinates → Colored 3D Objects → Scene Rendering
 - **Range**: X: ~400-500 ly, Y: ~-300 to -400 ly, Z: ~-1000 to -1200 ly
 - **Units**: Light years from Sol
 - **Origin**: Sol system (0, 0, 0)
+- **Axes**: 
+  - X: Galactic east/west (toward/away from galactic center)
+  - Y: Galactic up/down (perpendicular to galactic plane)
+  - Z: Galactic north/south (direction of galactic rotation)
 
-### Three.js Scene Coordinates  
+### Three.js Scene Coordinates (TOP-DOWN VIEW WITH MIRRORING FIX)
 - **OASIS Center**: (470, -380, -1100) ED → (0, 0, 0) Scene
 - **Scale Factor**: 0.1 (1 ED ly = 0.1 Three.js units)
-- **Formula**: `(ED_coord - OASIS_CENTER) * 0.1`
+- **Coordinate Mapping** (top-down view with mirroring fix):
+  - ED X (galactic east/west) → Three.js X (screen left/right, INVERTED to fix mirroring)
+  - ED Y (galactic up/down) → Three.js Y (screen up/down)
+  - ED Z (galactic north/south) → Three.js Z (screen depth)
+- **Formula**: 
+  ```javascript
+  scene_x = -(ED_x - center_x) * 0.1  // Inverted to fix left/right mirroring
+  scene_y = (ED_y - center_y) * 0.1   // Original top-down view
+  scene_z = (ED_z - center_z) * 0.1   // Original depth mapping
+  ```
 
 ---
 
